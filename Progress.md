@@ -47,10 +47,9 @@ Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`
   `EFFECTS_REFERENCE` / `BUFFS_REFERENCE` / `PARAMETER_GLOSSARY` into `data/*.enrich.json` id-maps
   and merged by the pipeline (324/324 enriched). Detail overlay shows the rich doc as the lead + a
   "Grounded in <ref>" citation; the short summary becomes a teaser. Strict build = 0 warnings.
-- ⚠ **Licensing note:** the icons are Red Hook's copyrighted art, now in a PUBLIC repo. This mirrors
-  the tension the mod's own `LICENSING.md` addresses ("public build ships zero art"). Fine for a
-  personal fan wiki; revisit if the tool is ever formally distributed (could gate icons behind a
-  local-only asset dir, or swap to original glyphs).
+- **Icons = base-game (Red Hook) assets, and that's fine.** No permissibility concern here. (The
+  mod's `LICENSING.md` "public build ships zero art" rule is specifically about not passing off other
+  **mod authors'** donor art as ours — it does not apply to base-game icons in a personal fan tool.)
 
 ### 2026-09-19 — session 1 (scaffold)
 - Read up on `dd-mods` (PROGRESS/INTENT/HERO_COOKBOOK) and `_dd_extract` (CONTEXT_MAP + component
