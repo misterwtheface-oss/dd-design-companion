@@ -289,6 +289,26 @@ button.ghost:hover { border-color: var(--border-hi); background: #ffffff08; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   APPENDIX OVERLAY — the whole reference layer behind one button
+   ═══════════════════════════════════════════════════════════════════ */
+.appx-btn { background: var(--surface3); border: 1px solid var(--border-hi); color: var(--gold); font-weight: 600; }
+.appx-btn:hover { background: var(--surface); }
+
+/* larger frame than a detail overlay (it hosts the full reference browser) */
+.appendix-panel { width: 94vw; max-width: 1400px; height: 92vh; max-height: 92vh; }
+.appendix-tabs {
+  display: flex; gap: 0.3rem; flex-shrink: 0; overflow-x: auto;
+  padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); background: var(--surface2);
+}
+.appx-tab {
+  background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-muted); font-weight: 600; padding: 0.35rem 0.75rem; white-space: nowrap;
+}
+.appx-tab:hover { border-color: var(--border-hi); color: var(--text); }
+.appx-tab.active { background: var(--gold); color: var(--bg); border-color: transparent; }
+.appendix-scroll { padding: 0.9rem 1.1rem; }
+
+/* ═══════════════════════════════════════════════════════════════════
    DOMAIN / CATEGORY BANNER (data-coloured; reused from skeleton trait banner)
    ═══════════════════════════════════════════════════════════════════ */
 .tag-banner {

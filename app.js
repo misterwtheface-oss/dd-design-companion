@@ -18,15 +18,19 @@
 
   // The top-level views. `carriers` = the author-first front door; catalog views read
   // DATA.surfaces[key] (the palette they link into); bridge is bespoke; soon = P1 stub.
+  // Main views live in #app. The reference layer (Design Elements + the palette) is collapsed into a
+  // single APPENDIX OVERLAY (#overlay-root) with its own internal tab strip — not top-level nav.
   const VIEWS = [
-    { key: "wizard",    label: "Wizard",         kind: "wizard" },
-    { key: "designElements", label: "Design Elements", kind: "carriers", group: "appendix" },
-    { key: "effects",   label: "Effects",       kind: "catalog", group: "appendix" },
-    { key: "buffStats", label: "Buff Stats",    kind: "catalog", group: "appendix" },
-    { key: "buffRules", label: "Rule Gates",    kind: "catalog", group: "appendix" },
-    { key: "bridge",    label: "Bridge",        kind: "bridge",  group: "appendix" },
-    { key: "heroes",    label: "Hero Designs",  kind: "soon"    },
-    { key: "balance",   label: "Balance Scales",kind: "soon"    },
+    { key: "wizard",  label: "Wizard",         kind: "wizard" },
+    { key: "heroes",  label: "Hero Designs",   kind: "soon" },
+    { key: "balance", label: "Balance Scales", kind: "soon" },
+  ];
+  const APPENDIX_VIEWS = [
+    { key: "designElements", label: "Design Elements", kind: "carriers" },
+    { key: "effects",   label: "Effects",    kind: "catalog" },
+    { key: "buffStats", label: "Buff Stats", kind: "catalog" },
+    { key: "buffRules", label: "Rule Gates", kind: "catalog" },
+    { key: "bridge",    label: "Bridge",     kind: "bridge" },
   ];
   const carriers = () => (DATA.carriers && DATA.carriers.items) || [];
   const carrierById = (id) => carriers().find((c) => c.id === id);
@@ -57,10 +61,14 @@
       cat: s.cat || {},        // { viewKey: activeCategoryId | "all" }
       search: s.search || {},  // { viewKey: query }
       wizard: s.wizard && typeof s.wizard === "object" ? { pick: s.wizard.pick || null, step: s.wizard.step || 1 } : { pick: null, step: 1 },
+      appendix: { open: false, view: (s.appendix && APPENDIX_VIEWS.some(v => v.key === s.appendix.view)) ? s.appendix.view : "designElements" },
     };
   }
   function persist() {
-    localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, cat: state.cat, search: state.search, wizard: state.wizard }));
+    localStorage.setItem(UI_KEY, JSON.stringify({
+      view: state.view, cat: state.cat, search: state.search, wizard: state.wizard,
+      appendix: { view: state.appendix.view },
+    }));
   }
 
   // ── helpers ──
@@ -98,10 +106,10 @@
       return `<button class="${active.trim()}" data-action="view" data-view="${v.key}">${esc(v.label)}</button>`;
     };
     const wizard = VIEWS.filter(v => v.kind === "wizard").map(btn).join("");
-    const appendix = VIEWS.filter(v => v.group === "appendix").map(btn).join("");
     const soon = VIEWS.filter(v => v.kind === "soon").map(btn).join("");
-    // Wizard is the front door; the reference surfaces sit under an "Appendix" label.
-    return `<nav class="surface-nav">${wizard}<span class="nav-label">Appendix</span>${appendix}<span style="flex:1"></span>${soon}</nav>`;
+    // Wizard is the front door; the whole reference layer collapses into ONE Appendix overlay.
+    const appx = `<button class="appx-btn" data-action="open-appendix">📖 Appendix</button>`;
+    return `<nav class="surface-nav">${wizard}${appx}<span style="flex:1"></span>${soon}</nav>`;
   }
 
   // ═══ MAIN RENDER ═══
@@ -110,12 +118,8 @@
     const prevMain = app.querySelector(".surface-main");
     const prevScroll = prevMain ? prevMain.scrollTop : 0;
 
-    const view = VIEWS.find(v => v.key === state.view);
-    let body = "";
-    if (view.kind === "wizard") body = wizardHTML();
-    else if (view.kind === "carriers") body = carriersHTML();
-    else if (view.kind === "catalog") body = catalogHTML(view.key);
-    else if (view.kind === "bridge") body = bridgeHTML();
+    const view = VIEWS.find(v => v.key === state.view) || VIEWS[0];
+    const body = view.kind === "wizard" ? wizardHTML() : `<p class="empty-state">Coming in P1.</p>`;
 
     app.innerHTML = `
       <header class="app-header">
@@ -410,6 +414,60 @@
     root.innerHTML = "";
   }
 
+  // ═══ APPENDIX OVERLAY (#overlay-root) — the whole reference layer in one overlay ═══
+  function appendixBody() {
+    const v = APPENDIX_VIEWS.find(x => x.key === state.appendix.view) || APPENDIX_VIEWS[0];
+    if (v.kind === "carriers") return carriersHTML();
+    if (v.kind === "catalog") return catalogHTML(v.key);
+    if (v.kind === "bridge") return bridgeHTML();
+    return "";
+  }
+  function renderAppendix() {
+    const root = document.getElementById("overlay-root");
+    const cur = state.appendix.view;
+    const tabs = APPENDIX_VIEWS.map(v =>
+      `<button class="appx-tab ${v.key === cur ? "active" : ""}" data-action="appx-tab" data-view="${v.key}">${esc(v.label)}</button>`).join("");
+    root.innerHTML = `
+      <div class="overlay-panel appendix-panel" role="dialog" aria-modal="true">
+        <div class="overlay-header">
+          <h2>Appendix</h2>
+          <button class="overlay-close" data-action="close-appendix" aria-label="Close">&times;</button>
+        </div>
+        <div class="appendix-tabs">${tabs}</div>
+        <div class="overlay-body"><div class="detail-main appendix-scroll">${appendixBody()}</div></div>
+      </div>`;
+  }
+  function openAppendix(view) {
+    if (view) state.appendix.view = view;
+    state.appendix.open = true;
+    renderAppendix();
+    const root = document.getElementById("overlay-root");
+    root.classList.remove("hidden");
+    root.setAttribute("aria-hidden", "false");
+  }
+  function closeAppendix() {
+    state.appendix.open = false;
+    const root = document.getElementById("overlay-root");
+    root.classList.add("hidden");
+    root.setAttribute("aria-hidden", "true");
+    root.innerHTML = "";
+  }
+  // wizard/carrier jump-links land here: open (or switch) the appendix to a surface
+  function gotoAppendix(view) {
+    state.appendix.view = view; persist();
+    if (state.appendix.open) renderAppendix(); else openAppendix(view);
+  }
+  // search inside the appendix: patch only the grid + count so the input keeps focus
+  function refreshAppendixGrid() {
+    const v = APPENDIX_VIEWS.find(x => x.key === state.appendix.view);
+    if (!v || v.kind !== "catalog") return;
+    const s = surface(v.key), shown = filteredItems(v.key);
+    const root = document.getElementById("overlay-root");
+    const grid = root.querySelector(".cat-grid"), count = root.querySelector(".result-count");
+    if (grid) grid.innerHTML = shown.length ? shown.map(it => tileHTML(s, it)).join("") : `<p class="empty-state">No matches.</p>`;
+    if (count) count.textContent = `${shown.length} / ${itemsOf(s).length}`;
+  }
+
   // ═══ BRIDGE VIEW ═══
   function bridgeHTML() {
     const b = DATA.bridge || { sections: [], triggers: [] };
@@ -464,9 +522,33 @@
         persist(); renderApp(); break;
       case "wizard-restart":
         state.wizard = { pick: null, step: 1 }; persist(); renderApp(); break;
-      case "goto-view":
-        state.view = el.dataset.view; persist(); renderApp(); break;
+      case "open-appendix":
+        openAppendix(); break;
+      case "goto-view":                 // wizard jump-link → open the appendix to that surface
+        gotoAppendix(el.dataset.view); break;
     }
+  }
+
+  // ═══ APPENDIX OVERLAY events (#overlay-root) ═══
+  function onAppendixClick(e) {
+    const el = e.target.closest("[data-action]");
+    if (!el) { if (e.target.id === "overlay-root") closeAppendix(); return; }  // backdrop = close
+    switch (el.dataset.action) {
+      case "close-appendix": closeAppendix(); break;
+      case "appx-tab": state.appendix.view = el.dataset.view; persist(); renderAppendix(); break;
+      case "cat": state.cat[el.dataset.view] = el.dataset.cat; persist(); renderAppendix(); break;
+      case "detail": openDetail(el.dataset.view, el.dataset.id); break;
+      case "carrier": openCarrierDetail(el.dataset.id); break;
+      case "goto-view": gotoAppendix(el.dataset.view); break;
+    }
+  }
+  function onAppendixChange(e) {
+    if (!e.target.classList.contains("cat-select")) return;
+    state.cat[e.target.dataset.view] = e.target.value; persist(); renderAppendix();
+  }
+  function onAppendixInput(e) {
+    if (!e.target.classList.contains("surface-search")) return;
+    state.search[e.target.dataset.view] = e.target.value; persist(); refreshAppendixGrid();
   }
   function onAppInput(e) {
     if (!e.target.classList.contains("surface-search")) return;
@@ -491,19 +573,24 @@
     const el = e.target.closest("[data-action]");
     if (!el) { if (e.target.id === "detail-overlay-root") closeDetail(); return; }
     if (el.dataset.action === "close-detail") closeDetail();
-    else if (el.dataset.action === "goto-view") {   // carrier detail → jump into a palette surface
-      state.view = el.dataset.view; persist(); closeDetail(); renderApp();
+    else if (el.dataset.action === "goto-view") {   // carrier detail → switch the appendix surface underneath
+      closeDetail(); gotoAppendix(el.dataset.view);
     }
   }
   function onKeydown(e) {
     if (e.key !== "Escape") return;
-    if (!document.getElementById("detail-overlay-root").classList.contains("hidden")) closeDetail();
+    // dismiss the top-most layer first: detail (z200) → appendix (z100)
+    if (!document.getElementById("detail-overlay-root").classList.contains("hidden")) return closeDetail();
+    if (state.appendix.open) closeAppendix();
   }
 
   // ── init ──
   document.getElementById("app").addEventListener("click", onAppClick);
   document.getElementById("app").addEventListener("input", onAppInput);
   document.getElementById("app").addEventListener("change", onAppChange);
+  document.getElementById("overlay-root").addEventListener("click", onAppendixClick);
+  document.getElementById("overlay-root").addEventListener("change", onAppendixChange);
+  document.getElementById("overlay-root").addEventListener("input", onAppendixInput);
   document.getElementById("detail-overlay-root").addEventListener("click", onDetailClick);
   document.addEventListener("keydown", onKeydown);
   renderApp();

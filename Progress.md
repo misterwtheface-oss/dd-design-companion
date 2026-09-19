@@ -2,6 +2,17 @@
 
 Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`.
 
+### 2026-09-19 — icon sync pipeline
+- The 49 shipped icons are no longer hand-copied. `data/icon-sources.json` maps each icon name →
+  its exact path inside the canonical `../_dd_extract/assets/` (provenance recovered by content-hash;
+  49/49 matched, off the fresh full asset extract — see `_dd_extract/ASSET_MAP.md`).
+- `tools/sync-icons.mjs` (re)builds `assets/icons/` from the extract: copies only mapped icons,
+  idempotent (size-checked). Cross-checks `build-data.mjs` — **errors** if the build references an
+  icon with no map entry (would break `haveIcon`), **reports** mapped-but-unreferenced icons.
+  Flags: `--prune` deletes on-disk orphans, `--strict` fails CI on drift.
+- 12 mapped icons currently unreferenced (resistance/currency/misc reserved for the backlog stat
+  visualizer) — kept on purpose. Adding an icon = one line in `icon-sources.json` + run sync.
+
 ## Current state (2026-09-19 — scaffolding session)
 - **LIVE:** https://misterwtheface-oss.github.io/dd-design-companion/ (repo
   `misterwtheface-oss/dd-design-companion`, Pages main/root, analytics active). P0 shipped.
@@ -35,6 +46,15 @@ Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`
 - [ ] Live "do my design's references resolve?" checker.
 
 ## Log
+### 2026-09-19 — session 1e (collapse Appendix into one overlay)
+- The five appendix nav chips (Design Elements + Effects/Buff Stats/Rule Gates/Bridge) collapsed into
+  a **single "📖 Appendix" button** that opens ONE overlay (`#overlay-root`) with an internal tab strip.
+  Nav is now just **Wizard · Appendix** (+ soon). Search/dropdown/tile-detail all work inside the
+  overlay; tile detail stacks above (z200 > z100); Escape peels detail → appendix. Wizard/carrier
+  jump-links now open the appendix overlay to the target surface instead of switching a main view.
+- Verified with a real **jsdom click-through** (15/15: open, tabs, search-filter, detail stacking,
+  Escape layering, wizard jump-link). No data change (data.js byte-identical).
+
 ### 2026-09-19 — session 1d (reframe: guided Wizard front door)
 - **New front door = a Wizard** over 4 questions: (1) What are you building? → pick one of the 14
   carriers · (2) What's forced by that start? · (3) What choices does it give? · (4) What's the hard
