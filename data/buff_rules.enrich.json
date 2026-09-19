@@ -1,0 +1,222 @@
+{
+  "always": {
+    "doc": "Rule index 0 — the unconditional baseline: the gate is permanently true, so the buff's stat effect is always live. This is the default rule when a buff omits rule_type. It takes no rule_data (neither float nor string). Authoring gotcha: never pair it with is_false_rule:true — 'not always' is never true, so the buff can never activate, and the parser explicitly warns ('has rule type always but is set to a false rule and will never be true').",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "hpbelow": {
+    "doc": "Rule index 4 — true while the acting actor's own HP fraction is below the threshold given in rule_data.float. rule_data is a fraction 0-1 (e.g. 0.35 = below 35% max HP), not raw HP or a percentage int. Classic last-stand / desperation / enrage gate. is_false_rule:true inverts it to 'HP at or above threshold', turning it into a healthy-only gate. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "hpabove": {
+    "doc": "Rule index 5 — true while the acting actor's own HP fraction is above the threshold in rule_data.float (fraction 0-1, e.g. 0.85 = above 85% max HP). The healthy / full-strength counterpart to hpbelow. is_false_rule:true flips it to 'HP at or below threshold' (wounded gate). No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "at_deaths_door": {
+    "doc": "Rule index 15 — true while the actor is At Death's Door (HP reduced to zero, one hit from a deathblow). Takes no rule_data. Ideal for do-or-die / clutch effects. The init flag on this rule is 0x100 (self/no-arg context). is_false_rule:true inverts to 'not at Death's Door'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "ondeathsdoorenter": {
+    "doc": "Rule index 49 — fires at the transition moment the actor ENTERS Death's Door, rather than staying true for the whole span spent there (contrast at_deaths_door, which is the continuous state). Takes no rule_data. Good for one-shot on-entry triggers, especially paired with consume_on_rule_active. is_false_rule:true inverts the transition test. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_hpbelow": {
+    "doc": "Rule index 43 — true while the CURRENT TARGET's HP fraction is below rule_data.float (fraction 0-1, e.g. 0.35 = target below 35%). Evaluated against the attack target, so it drives execute / finisher gates. Carries init flag 0x100 (target-context). is_false_rule:true flips to 'target at or above threshold'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_hpabove": {
+    "doc": "Rule index 44 — true while the current target's HP fraction is above rule_data.float (fraction 0-1, e.g. 0.85 = target above 85%). Opener / alpha-strike-vs-full-health gate, resolved against the attack target. is_false_rule:true flips to 'target at or below threshold' (execute gate). No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "stress_below": {
+    "doc": "Rule index 6 — true while the actor's stress value is below rule_data.float. rule_data is a raw stress point value (e.g. 50), NOT a fraction — stress runs 0-200 in DD1. Composed / calm gate. is_false_rule:true inverts to 'stress at or above threshold'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "stress_above": {
+    "doc": "Rule index 7 — true while the actor's stress value is above rule_data.float (raw stress points, e.g. 100; the meltdown line sits at 100/200). Rattled / near-meltdown gate. is_false_rule:true inverts to 'stress at or below threshold'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "afflicted": {
+    "doc": "Rule index 8 — true while the actor is in an Affliction resolve state (broke under stress: Paranoid, Hopeless, etc.). Takes no rule_data. Cornered-rat / berserk gate. is_false_rule:true inverts to 'not afflicted' (which includes both neutral and virtued states). No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "virtued": {
+    "doc": "Rule index 9 — true while the actor is in a Virtue resolve state (rallied against stress: Courageous, Focused, Powerful, etc.). Takes no rule_data. Heroic-surge gate. is_false_rule:true inverts to 'not virtued'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "in_rank": {
+    "doc": "Rule index 16 — true while the acting actor occupies the rank given in rule_data.float. rule_data is a rank number 1-4 (1 = frontmost, 4 = backmost), a single rank, not a range. The most-used positional gate in the game. is_false_rule:true inverts to 'not in that rank' (i.e. any of the other three). No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_in_rank": {
+    "doc": "Rule index 17 — true while the TARGET occupies the rank in rule_data.float (rank 1-4, 1 = frontmost / closest, 4 = backmost). Positional gate resolved against the target rather than self. is_false_rule:true inverts to 'target not in that rank'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "walking_backwards": {
+    "doc": "Rule index 23 — true while the party is moving backwards (retreating/backtracking through a corridor). Takes no rule_data. is_false_rule:true inverts to 'not walking backwards' (forward or stationary). No string token. This is an exploration-context rule and is inert in combat.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "in_room": {
+    "doc": "Rule index 21 — true while the party is in a room (as opposed to a corridor). Takes no rule_data; carries init flag 0x100. is_false_rule:true inverts to 'not in a room' (i.e. in a corridor), overlapping in_corridor. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "in_corridor": {
+    "doc": "Rule index 22 — true while the party is in a corridor (as opposed to a room). Takes no rule_data. is_false_rule:true inverts to 'not in a corridor' (i.e. in a room), overlapping in_room. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "firstroundonly": {
+    "doc": "Rule index 12 — true only during the first combat round of an encounter. Takes no rule_data. Opener / ambush / alpha-strike gate. is_false_rule:true is the common inversion here: it means every round AFTER the first (a 'not the opener' fatigue/ramp gate). No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "activated_first": {
+    "doc": "Rule index 47 — true when the actor acted first this round (won initiative / went before every other combatant). Takes no rule_data. Evaluated per-round against turn order. is_false_rule:true inverts to 'did not act first'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "activated_last": {
+    "doc": "Rule index 48 — true when the actor acted last this round (the cleanup slot). Takes no rule_data. Good for finisher / cleanup effects. is_false_rule:true inverts to 'did not act last'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "meleeonly": {
+    "doc": "Rule index 10 — true when the effect/skill in question is classified melee only. Takes no rule_data. Gates a buff to the melee half of a build (or to melee-attribute skills). is_false_rule:true inverts to 'not melee-only', i.e. ranged. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "rangedonly": {
+    "doc": "Rule index 11 — true when the effect/skill is classified ranged only. Takes no rule_data. Gates a buff to the ranged half of a build. is_false_rule:true inverts to 'not ranged-only', i.e. melee. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "skill": {
+    "doc": "Rule index 26 — true only during / when triggered by a specific named skill. REQUIRES a string: rule_data.string holds the skill id token (hashed into ruledata_string). This is one of the string-keyed rules — omitting rule_data.string trips the parser warning 'has invalid rule data for rule type skill that requires string in rule_data'. Lets a buff power up or gate to one particular ability. is_false_rule:true inverts to 'any skill except this one'.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "actorStatus": {
+    "doc": "Rule index 13 — true while the actor carries a given status/token (a mark or condition token). REQUIRES a string: rule_data.string is the status-name token, hashed to ruledata_string; missing it triggers the requires-string parser warning. is_false_rule:true inverts to 'actor lacks that status'. Sibling of is_actor_status (index 42); actorStatus is the base-name variant.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "is_actor_status": {
+    "doc": "Rule index 42 — status-based variant of actorStatus: true while the actor carries the named status token. REQUIRES a string in rule_data.string (the status name; init flag 0x100). Missing the string trips the requires-string parser warning. is_false_rule:true inverts to 'actor does not have that status'. Use whichever of actorStatus / is_actor_status the target status registers under.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "has_buff": {
+    "doc": "Rule index 18 — true while the actor currently has a named buff active, letting one buff key off another for combo/stacking chains. rule_data carries the buff id (stored as string/number — ruledata_string/ruledata_number); this rule does NOT set the requires-string flag, so the id can be supplied numerically as the hashed buff id. is_false_rule:true inverts to 'actor does not have that buff'.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "has_quirk": {
+    "doc": "Rule index 31 — true while the actor has a specific quirk. rule_data.string is the quirk id token (this rule is string-keyed in practice via ruledata_string, though it is not on the parser's hard requires-string list). Rewards or keys off a particular character trait. is_false_rule:true inverts to 'actor lacks that quirk'.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "is_stealthed": {
+    "doc": "Rule index 35 — true while the actor is stealthed. Takes no rule_data. From-the-shadows gate. is_false_rule:true inverts to 'not stealthed'. No string token. Resolved against self.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_is_stealthed": {
+    "doc": "Rule index 36 — true while the current target is stealthed. Takes no rule_data. Useful for stealth-piercing / anti-stealth effects. is_false_rule:true inverts to 'target not stealthed'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "is_guarded": {
+    "doc": "Rule index 33 — true while the actor is being guarded by an ally (attacks are being redirected to a guardian). Takes no rule_data; init flag 0x101. is_false_rule:true inverts to 'not being guarded'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_is_guarded": {
+    "doc": "Rule index 34 — true while the current target is being guarded by one of its allies. Takes no rule_data. is_false_rule:true inverts to 'target not guarded'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "is_guarding": {
+    "doc": "Rule index 39 — true while the actor is guarding someone else (the protector role). Takes no rule_data; init flag 0x100. Protector / tank gate. is_false_rule:true inverts to 'not currently guarding anyone'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_is_guarding": {
+    "doc": "Rule index 40 — true while the current target is guarding one of its allies. Takes no rule_data. is_false_rule:true inverts to 'target not guarding'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "riposte": {
+    "doc": "Rule index 25 — true while the actor is in / performing a riposte state (ready to counter when attacked). Takes no rule_data; init flag 0x100. Counterattacker gate. is_false_rule:true inverts to 'not in riposte'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "is_vampire": {
+    "doc": "Rule index 29 — true while the actor has the vampire (Crimson Curse) condition. Takes no rule_data; init flag 0x100. is_false_rule:true inverts to 'actor not a vampire'. No string token. CC DLC context.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_is_vampire": {
+    "doc": "Rule index 30 — true while the current target has the vampire (Crimson Curse) condition. Takes no rule_data. is_false_rule:true inverts to 'target not a vampire'. No string token. CC DLC context.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "target_is_burning": {
+    "doc": "Rule index 52 — true while the current target is on fire (has a burn DoT). Takes no rule_data. Resolved against the attack target, so it works for on-hit fire-synergy effects. is_false_rule:true inverts to 'target not burning'. No string token. CoM DLC burn context.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "any_is_burning": {
+    "doc": "Rule index 53 — true while any relevant actor on the field is burning (has a burn DoT). Broader fire-synergy gate than target_is_burning. Takes no rule_data. is_false_rule:true inverts to 'nobody is burning'. No string token. CoM DLC burn context.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "is_target_corpse": {
+    "doc": "Rule index 54 — true while the current target is a corpse (the collapsed-body placeholder left by a slain multi-rank enemy). Takes no rule_data. Useful for corpse-clearing or necromancy-flavored effects. is_false_rule:true inverts to 'target is not a corpse' (a living combatant). No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "monsterType": {
+    "doc": "Rule index 14 — true while the ACTOR's own monster type matches the token in rule_data.string (e.g. eldritch, unholy, beast, human). REQUIRES a string (init flag 0x100; it is on the requires-string list). The core slayer/anti-type gate. is_false_rule:true inverts to 'actor is NOT of that type', which is how anti-type resist buffs are authored. Note this checks the actor carrying the buff, not the target — see attacking_monster_type for the incoming-attacker variant.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "monsterSize": {
+    "doc": "Rule index 1 — true while the actor's monster size matches rule_data.float (the numeric size = how many ranks the monster occupies; e.g. large enemies span multiple ranks). rule_data is that size number, no string. is_false_rule:true inverts to 'size does not match'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "monster_type_count_min": {
+    "doc": "Rule index 32 — true when at least N monsters of a given type are present on the field. Takes BOTH parameters: rule_data.float = the minimum count, and rule_data.string = the monster-type token (the type key is string-keyed; init flag 0x100). Horde/swarm-bonus gate. is_false_rule:true inverts to 'fewer than N of that type present'.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "attacking_monster_type": {
+    "doc": "Rule index 45 — true while the ATTACKER hitting the actor is of the monster type in rule_data.string. REQUIRES a string (the monster-type token, hashed to ruledata_string). Revenge / defensive-vs-type gate — the mirror of monsterType, evaluated against whoever is striking the wearer. is_false_rule:true inverts to 'attacker is not of that type'.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "in_mode": {
+    "doc": "Rule index 27 — true while the actor is in a given battle mode/stance (e.g. a class's stance toggle). REQUIRES a string: rule_data.string is the mode/stance id token (init flag 0x100; the record also sets +0x2a tooltip arg-swap = 1). Stance-gated buffs. is_false_rule:true inverts to 'actor not in that mode' (i.e. in any other stance).",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "actor_base_class": {
+    "doc": "Rule index 28 — true while the actor's base hero class matches the class id in rule_data.string (e.g. crusader, highwayman). REQUIRES a string (init flag 0x100). Class-gated buffs, useful on shared trinkets that should only benefit one class. is_false_rule:true inverts to 'actor is any other class'.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "lightbelow": {
+    "doc": "Rule index 2 — true while the current torch/light level is below rule_data.float. rule_data is a light threshold on the 0-100 torch scale (e.g. 26 = Dim boundary, 51 = Radiant boundary), not a fraction. Dark / shadow-build gate. is_false_rule:true inverts to 'light at or above threshold'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "lightabove": {
+    "doc": "Rule index 3 — true while the current torch/light level is above rule_data.float (light threshold on the 0-100 torch scale, e.g. 50 or 75). Bright / radiant-build gate. is_false_rule:true inverts to 'light at or below threshold'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "torch_setting": {
+    "doc": "Rule index 41 — true while the torch/light META setting matches rule_data.float — a discrete torch preset id rather than a continuous level threshold (contrast lightbelow/lightabove). rule_data is the setting id number, no string. is_false_rule:true inverts to 'a different torch setting'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "in_camp": {
+    "doc": "Rule index 19 — true while the party is currently in camp. Takes no rule_data; init flag 0x100. The standard gate for camping-skill buffs. is_false_rule:true inverts to 'not in camp'. No string token. This is a non-combat context rule.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "in_dungeon": {
+    "doc": "Rule index 20 — true while the party is inside a dungeon/raid (on an expedition). Takes no rule_data. Distinguishes dungeon effects from town/roster context. is_false_rule:true inverts to 'not in a dungeon' (in town). No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "in_activity": {
+    "doc": "Rule index 24 — true while in a town-activity context (e.g. a tavern/abbey stress-relief building slot). rule_data supplies the activity id (number, ruledata_number; may also be string-keyed via ruledata_string). Gates town side-effect buffs. is_false_rule:true inverts to 'not in that activity'. This rule is inert in combat.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "has_item_id": {
+    "doc": "Rule index 37 — true while the party inventory holds a specific item id. rule_data carries the item id (stored as string/number — ruledata_string or ruledata_number). Item-gated buffs. is_false_rule:true inverts to 'that item not held'. This exploration/inventory rule is inert in combat.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "has_item_type": {
+    "doc": "Rule index 38 — true while the party inventory holds an item of the given TYPE (a category, e.g. a provision class, rather than a specific id). REQUIRES a string: rule_data.string is the item-type token (init flag 0x100). is_false_rule:true inverts to 'no item of that type held'. Inventory rule, inert in combat.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "no_trinkets": {
+    "doc": "Rule index 46 — true while the actor has no trinkets equipped. Takes no rule_data; init flag 0x100. Enables no-trinket-challenge reward buffs. is_false_rule:true inverts to 'has at least one trinket equipped'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "negative_quirk_above": {
+    "doc": "Rule index 50 — true while the actor's COUNT of negative quirks is above rule_data.float. rule_data is a quirk-count number (raw integer count of bad quirks), not a fraction. Rewards or penalizes a flawed character. is_false_rule:true inverts to 'negative-quirk count at or below threshold'. No string token.",
+    "ref": "BUFFS_REFERENCE.md"
+  },
+  "quest_uses_remaining_above": {
+    "doc": "Rule index 51 — true while a quest item's remaining uses are above rule_data.float. rule_data is the uses-remaining count (raw integer of charges left on a consumable/charged quest object). is_false_rule:true inverts to 'uses at or below threshold' (spent-object gate). No string token. Quest-context rule, inert in generic combat.",
+    "ref": "BUFFS_REFERENCE.md"
+  }
+}

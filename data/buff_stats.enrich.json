@@ -1,0 +1,374 @@
+{
+  "combat_stat_add": {
+    "doc": "Adds a FLAT value (in the stat's own units) to one of the 10 closed ActorCombatStat values named by stat_sub_type — the sub_type resolves against ActorCombatStat::GetTypeFromId. The 10 sub_types are damage_low, damage_high, defense_rating (DODGE), protection_rating (PROT), speed_rating (SPD), attack_rating (ACC), crit_chance, max_hp, riposte_on_hit_chance, riposte_on_miss_chance. Convention splits by stat identity: the six 100-scale RATING stats (defense_rating/dodge, protection_rating/prot, attack_rating/acc, crit_chance, riposte_on_hit_chance, riposte_on_miss_chance) take amount as a FRACTION OF 100 (0.15 = +15 points), while the raw-unit stats (damage_low, damage_high, max_hp, speed_rating) take amount as RAW UNITS (3 = +3 dmg, 10 = +10 HP, 5 = +5 SPD). Positive = buff, negative = debuff; the six rating stats hard-cap at 100 so stacking beyond it is wasted. The engine applies each to the matching .<stat>_add field.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 2) + §3.1 Combat-stat domain; PARAMETER_GLOSSARY.md 'The 10 core combat stats'"
+  },
+  "combat_stat_multiply": {
+    "doc": "Multiplies one of the 10 ActorCombatStat values named by stat_sub_type by a fractional amount that is a SCALAR AROUND IDENTITY 1.0 (0.20 = +20%, -0.30 = -30%) for ALL sub_types — unlike combat_stat_add there is no rating-vs-raw split. Same 10-value sub_type domain via ActorCombatStat::GetTypeFromId: damage_low, damage_high, defense_rating (DODGE), protection_rating (PROT), speed_rating (SPD), attack_rating (ACC), crit_chance, max_hp, riposte_on_hit_chance, riposte_on_miss_chance. Because it scales off the target's base, it is worth more on high-base characters; to buff overall damage the author must supply BOTH damage_low and damage_high. Applied to the matching .<stat>_multiply engine field; the six 100-scale rating stats still clamp at 100 after multiplication.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 3) + §3.1 Combat-stat domain; PARAMETER_GLOSSARY.md value conventions"
+  },
+  "hp_dot_poison": {
+    "doc": "Grants (or modifies) a poison/blight damage-over-time on HP. Amount is RAW HP lost per tick (per round), not a fraction. Positive amount deals more HP loss per round the DoT persists. This is the base per-tick magnitude of the blight status; its scaling matrix (magnitude/duration, dealt/received) lives in the hp_dot_poison_* stat family.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 4); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_bleed": {
+    "doc": "Grants (or modifies) a bleed damage-over-time on HP. Amount is RAW HP lost per tick (per round). Positive = more HP loss per round. This is the base per-tick bleed magnitude; magnitude/duration scaling and dealt-vs-received variants are the hp_dot_bleed_* stat family.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 5); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_heal_amount": {
+    "doc": "Flat heal / heal-over-time amount restored to HP, in RAW HP units. Positive restores health. This is a direct flat magnitude, not a percent modifier — for percent scaling of output/received use hp_heal_percent / hp_heal_received_percent.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 6); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "hp_heal_percent": {
+    "doc": "Percent modifier that scales the HP healing this actor OUTPUTS to others. Amount is a fraction ~1.0-relative (0.30 = +30% healing output). Positive = stronger heals given; negative is a self-imposed healing-output penalty. Distinct from hp_heal_received_percent (which governs incoming heals).",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 7); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "hp_heal_received_percent": {
+    "doc": "Modifies the amount of HP healing this actor RECEIVES from others. Amount is a fraction ~1.0-relative (0.30 = +30% incoming heals). Positive = heals land bigger; negative is a healing-debuff commonly used to make a target harder to sustain.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 8); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "stress_dmg_percent": {
+    "doc": "Modifies the stress DAMAGE this actor deals to targets. Amount is a fraction ~1.0-relative (0.30 = +30% stress dealt). Positive = inflicts more stress; negative reduces the actor's horror output. Paired conceptually with stress_dmg_received_percent on the defensive side.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 9); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "stress_heal_percent": {
+    "doc": "Modifies the stress HEALING (de-stress) this actor provides to others. Amount is a fraction ~1.0-relative (0.30 = +30% stress relief given). Positive = better stress recovery granted; negative weakens the actor as a stress healer. Complements stress_heal_received_percent on the receiving side.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 10); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "resistance": {
+    "doc": "Adds to a specific resistance named by stat_sub_type, resolved against ResistanceType::GetTypeFromTypeId (a closed, code-certain set of exactly 8). The 8 sub_types are: stun, poison (blight), bleed, disease, move (resist forced move/push-pull), debuff, death_blow (resist a killing blow at 0 HP), trap. Amount is a fractional +/- to that resist chance (0.30 = +30% resist); positive = harder to afflict with that status. Hero base resistance values live in <class>.info.darkest under resistances:.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 11) + §3.2 Resistance domain (8 values); PARAMETER_GLOSSARY.md 'The 8 resistances'"
+  },
+  "poison_chance": {
+    "doc": "Modifies this actor's chance to APPLY poison (blight) with its attacks. Amount is a fractional chance modifier (0.20 = +20% chance), added on top of the skill's base apply chance. Positive = more blight procs. Like all chance stats it effectively clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 12); PARAMETER_GLOSSARY.md chance-to-apply status"
+  },
+  "bleed_chance": {
+    "doc": "Modifies this actor's chance to APPLY bleed with its attacks. Amount is a fractional chance modifier (0.20 = +20% chance) added to the skill's base apply chance. Positive = more bleed procs; chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 13); PARAMETER_GLOSSARY.md chance-to-apply status"
+  },
+  "stun_chance": {
+    "doc": "Modifies this actor's chance to APPLY stun with its attacks. Amount is a fractional chance modifier (0.20 = +20% chance) added to the skill's base stun chance. Positive = more stuns land; the resulting apply chance is contested against the target's stun resistance and clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 14); PARAMETER_GLOSSARY.md chance-to-apply status"
+  },
+  "move_chance": {
+    "doc": "Modifies this actor's chance to APPLY forced-move (shuffle / knockback / pull) effects. Amount is a fractional chance modifier (0.20 = +20% chance). Positive = more repositions land; contested against target move resistance and clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 15); PARAMETER_GLOSSARY.md chance-to-apply status"
+  },
+  "debuff_chance": {
+    "doc": "Modifies this actor's chance to APPLY debuffs with its skills. Amount is a fractional chance modifier (0.20 = +20% chance). Positive = debuffs land more often; contested against target debuff resistance and clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 16); PARAMETER_GLOSSARY.md chance-to-apply status"
+  },
+  "resolve_check_percent": {
+    "doc": "Modifies the resolve check chance — the roll at high stress (100) that decides Affliction vs Virtue. Amount is a fraction ~1.0-relative modifier. Positive skews the roll toward the favorable (Virtue) outcome. Confidence is medium: the stat name and category are code-registered but the exact sign/direction semantics of the roll are inferred.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 17); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "resolve_xp_bonus_percent": {
+    "doc": "Modifies resolve XP gained by the hero. Amount is a fraction ~1.0-relative modifier; positive = faster leveling toward resolve-level thresholds. Medium confidence — name/category code-registered, magnitude convention inferred from the _percent family.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 18); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "scouting_chance": {
+    "doc": "Modifies dungeon scouting chance — the probability of revealing map rooms/corridors ahead on entering a new area. Amount is a fractional chance modifier (0-1). Positive = scouts more of the map. Chance effectively clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 19); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "remove_negative_quirk_chance": {
+    "doc": "Chance to remove a negative quirk, evaluated in a town / treatment (Sanitarium) context. Amount is a fractional chance (0-1); positive = more likely to shed a bad quirk. Medium confidence on exact trigger context; the category is code-registered.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 20); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "food_consumption_percent": {
+    "doc": "Modifies party food consumption during dungeon hunger checks. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (eats less food). Medium confidence on the exact application point; magnitude convention follows the _percent family.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 21); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "starving_damage_percent": {
+    "doc": "Modifies the damage taken while starving (i.e. when a hunger check is failed and no food is fed). Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (takes less starve damage). Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 22); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "upgrade_discount": {
+    "doc": "Reduces the cost of equipment / skill upgrades in town. Amount is a fractional discount (0-1; 0.10 = 10% cheaper), positive = cheaper. This stat pairs with a free-form stat_sub_type that scopes which upgrade line the discount hits: the localization exposes upgrade_discount_weapon and upgrade_discount_armour, so sub_type is one of weapon|armour. Medium confidence on the exact economy hook.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 23) + §2 VALIDATION GATE (loc keys upgrade_discount_armour/_weapon); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "party_surprise_chance": {
+    "doc": "Modifies the chance the PARTY is surprised (ambushed) at the start of a fight. Amount is a fractional chance modifier (0-1); NEGATIVE is beneficial (harder to surprise the party). Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 24); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "monsters_surprise_chance": {
+    "doc": "Modifies the chance MONSTERS are surprised (the party gets the drop and acts first). Amount is a fractional chance modifier (0-1); POSITIVE is beneficial (party ambushes more). Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 25); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "riposte": {
+    "doc": "Grants the riposte STATE, causing the actor to counterattack when it is hit (or missed) while the state holds. This is a flag/state buff: amount is typically 0 and the effect is governed by duration/duration_type rather than a magnitude. The separate combat_stat riposte_on_hit_chance / riposte_on_miss_chance stats and riposte_duration_percent tune how often it fires and how long it lasts.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 26); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "guarded": {
+    "doc": "Marks the actor as GUARDED (a state flag), redirecting attacks aimed at it to its guardian for the duration. Amount is a boolean/state flag rather than a magnitude; how long the guard persists is controlled by duration and by guard_duration_percent / guard_duration_received_percent. guard_blocked and ignore_guard interact with this state.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 27); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "damage_received_percent": {
+    "doc": "Modifies the incoming direct damage this actor RECEIVES. Amount is a fraction ~1.0-relative (0.20 = +20% taken makes the actor vulnerable; -0.20 = 20% less taken makes it tanky). Positive = a vulnerability debuff, negative = a mitigation buff. Applies after PROT to the final damage figure.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 28); PARAMETER_GLOSSARY.md Core stat & damage"
+  },
+  "stress_heal_received_percent": {
+    "doc": "Modifies the stress HEALING (de-stress) this actor receives from others. Amount is a fraction ~1.0-relative modifier; positive = de-stresses faster from incoming stress-heals, negative reduces incoming stress relief. Complements stress_heal_percent (output side).",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 29); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "stress_dmg_received_percent": {
+    "doc": "Modifies the stress DAMAGE this actor receives. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (takes less stress, i.e. horror resistance). A free-form stat_sub_type can scope it to a context — the localization exposes stress_dmg_received_percent_mode (and hunger is another documented scope), so sub_type may be mode|hunger|... to restrict the effect to a battle mode or the starving context.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 30) + §2 VALIDATION GATE (loc key stress_dmg_received_percent_mode); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "vampire": {
+    "doc": "Crimson Curse vampirism STATE marker (Crimson Court DLC). A state/duration flag rather than a magnitude — it tags the actor as afflicted by the Curse, which downstream systems (craving, bloodlust/passing, is_vampire rules) key off. Medium confidence on the precise stored semantics.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 31); PARAMETER_GLOSSARY.md Quirk/evolution"
+  },
+  "activity_side_effect_chance": {
+    "doc": "Modifies the chance of town-activity side effects (e.g. gambling-style random gains/losses of currency or trinkets during a town activity). Amount is a fractional chance modifier (0-1). This stat carries a free-form stat_sub_type selecting WHICH side effect: add_currency, remove_currency, add_trinket, remove_trinket — each has a buff_stat_tooltip_activity_side_effect_chance_* loc key and is used by gambling trinkets (e.g. skilled_gambler_gold). Medium confidence on exact hook.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 32) + §2 VALIDATION GATE (4 valid sub_types); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "disable_combat_skill_attribute": {
+    "doc": "Silences a whole combat-skill ATTRIBUTE category on the actor named by stat_sub_type — a flag buff (amount unused as a magnitude) that turns off skills carrying that attribute (e.g. stop it from healing, stunning, bleeding). The sub_type resolves against ActorCombatSkillAttribute::GetTypeFromId, a code-certain closed set of exactly 12: bleed, buff, daze, debuff, disease, guard, heal, move, poison, stress, stun, tag. Any value outside those 12 exact tokens silently no-ops (the resolver returns k_count with no assert outside debug) — real mods using eat or stressheal do nothing. A skill carries an attribute when it *applies* that thing.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 33) + §3.3 Skill-attribute domain (definitive 12 via FUN_140068b30)"
+  },
+  "stress_dot": {
+    "doc": "Grants (or modifies) a stress damage-over-time. Amount is RAW stress per tick (per round). Positive adds stress each round the DoT persists. Its scaling matrix (magnitude/duration, dealt/received) is the stress_dot_* stat family.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 34); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "shuffle_dot": {
+    "doc": "Grants (or modifies) a periodic self-shuffle DoT — each tick the afflicted actor is randomly repositioned within its ranks. Amount behaves as a duration/flag rather than a damage magnitude. Duration scaling (dealt/received) is shuffle_dot_duration_percent / shuffle_dot_duration_received_percent. Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 35); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_heal": {
+    "doc": "Grants a heal-over-time (regeneration) on HP. Amount is RAW HP restored per tick (per round). Positive = more HP regained each round. This base per-tick regen is scaled by the hp_heal_dot_* percent family (magnitude/duration, dealt/received).",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 36); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "torchlight_burn_percent": {
+    "doc": "Modifies the rate at which torch light burns down over time/steps in a dungeon. Amount is a fraction ~1.0-relative modifier; NEGATIVE makes the torch last longer (light drops more slowly). Medium confidence on the exact tick model.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 37); PARAMETER_GLOSSARY.md Torch/light"
+  },
+  "quirk_evolution_death_immune": {
+    "doc": "Lifecycle control flag: makes a quirk-evolution effect death-immune (the evolving quirk/buff is not stripped by a death event). A flag with no magnitude. Low confidence — code-registered as a stat_type but the evolution lifecycle it gates is not fully decompiled.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 38)"
+  },
+  "vampire_evolution_duration": {
+    "doc": "Duration control for the vampire (Crimson Curse) evolution stages. Amount is a raw duration in rounds/turns rather than a percent or fraction. Low confidence — code-registered but the Curse-evolution progression it governs is not fully traced.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 39)"
+  },
+  "ambush_chance": {
+    "doc": "Modifies ambush chance — the probability of a random ambush event, chiefly while camping. Amount is a fractional chance modifier (0-1). Also listed among the chance-to-apply-status stats. Medium confidence on exact context; chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 40); PARAMETER_GLOSSARY.md chance-to-apply status"
+  },
+  "tag_blocked": {
+    "doc": "Prevents a tag (mark) from being applied to the actor — a flag buff. Note this generic stat_type is also used as an inert carrier (amount 0) for buffs whose real payload is attack_additional_effect_ids (e.g. Fire's Edge). Low confidence on the standalone mark-immunity semantics.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 41) + §1 note on attack_additional_effect_ids"
+  },
+  "ignore_protection": {
+    "doc": "Attacker-side pierce flag: this actor's attacks ignore the target's PROT (armor). Typically a boolean flag, though a fractional value (0-1) can express partial protection-pierce. High confidence — mirrors the skill-level .ignore_protection field.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 42); PARAMETER_GLOSSARY.md Core stat & damage"
+  },
+  "stealth": {
+    "doc": "Grants the STEALTH state, making the actor untargetable by most enemy attacks until it acts, is revealed, or the state expires. A state/duration flag (amount unused as a magnitude; duration/duration_type govern lifetime). Countered by ignore_stealth on attackers.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 43); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "guard_blocked": {
+    "doc": "Prevents this actor from being guarded, or from guarding others — a flag buff that suppresses participation in the guard mechanic. Medium confidence on which direction (being-guarded vs guarding) applies in a given use.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 44); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "crit_received_chance": {
+    "doc": "Modifies the chance this actor is CRIT by incoming attacks. Amount is a fractional chance modifier (0-1); NEGATIVE is beneficial (crit-proof), positive makes the actor a crit magnet. Adds to the attacker's crit chance against this specific target; effectively clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 45); PARAMETER_GLOSSARY.md Core stat & damage"
+  },
+  "damage_reflect_percent": {
+    "doc": "Reflects a percentage of received damage back to the attacker (thorns). Amount is a fraction ~1.0-relative expressing the fraction of incoming damage reflected. Positive = more reflected. Medium confidence on exact reflect timing.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 46); PARAMETER_GLOSSARY.md Core stat & damage"
+  },
+  "shard_reward_percent": {
+    "doc": "Modifies shard (Crimson Court currency) reward gained. Amount is a fraction ~1.0-relative modifier; positive = more shards. Low confidence — CC-specific and not deeply traced.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 47); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "shard_consume_percent": {
+    "doc": "Modifies shard (Crimson Court currency) consumption. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (uses fewer shards). Low confidence — CC-specific.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 48); PARAMETER_GLOSSARY.md Town/campaign/economy"
+  },
+  "cure_poison_chance": {
+    "doc": "Per-turn chance to cure poison (blight) on SELF. Amount is a fractional chance (0-1); positive = shrugs off active blight more often. Evaluated per turn while the actor is blighted; chance clamps at 100. The _received sibling (cure_poison_received_chance) governs cures cast by others.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 49); PARAMETER_GLOSSARY.md Cures"
+  },
+  "cure_bleed_chance": {
+    "doc": "Per-turn chance to cure bleed on SELF. Amount is a fractional chance (0-1); positive = shrugs off active bleed more often. Evaluated per turn while bleeding; chance clamps at 100. Its _received sibling (cure_bleed_received_chance) handles cures from other actors.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 50); PARAMETER_GLOSSARY.md Cures"
+  },
+  "cure_poison_received_chance": {
+    "doc": "Chance to cure poison (blight) when this actor is TARGETED by a cure from another actor. Amount is a fractional chance (0-1); positive = incoming cures land / clear blight more reliably. Medium confidence on the exact interaction with the caster's cure. Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 51); PARAMETER_GLOSSARY.md Cures"
+  },
+  "cure_bleed_received_chance": {
+    "doc": "Chance to cure bleed when this actor is TARGETED by a cure from another actor. Amount is a fractional chance (0-1); positive = incoming cures clear bleed more reliably. Medium confidence. Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 52); PARAMETER_GLOSSARY.md Cures"
+  },
+  "hp_dot_poison_amount_percent": {
+    "doc": "Modifies the MAGNITUDE of poison (blight) DoT this actor DEALS. Amount is a fraction ~1.0-relative modifier (0.30 = +30% blight damage per tick). Positive = stronger blight ticks. Part of the poison scaling matrix — the DEALT-magnitude axis; pair with hp_dot_poison_duration_percent for tick count.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 53); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_poison_amount_received_percent": {
+    "doc": "Modifies the magnitude of poison (blight) DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (takes weaker blight ticks). The RECEIVED-magnitude axis of the poison scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 54); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_poison_duration_percent": {
+    "doc": "Modifies the DURATION of poison (blight) DoT this actor APPLIES. Amount is a fraction ~1.0-relative modifier; positive = blight lasts more ticks/rounds. The DEALT-duration axis of the poison scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 55); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_poison_duration_received_percent": {
+    "doc": "Modifies the duration of poison (blight) DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (blight fades faster). The RECEIVED-duration axis of the poison scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 56); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_bleed_amount_percent": {
+    "doc": "Modifies the MAGNITUDE of bleed DoT this actor DEALS. Amount is a fraction ~1.0-relative modifier (0.30 = +30% bleed damage per tick). Positive = stronger bleed ticks. The DEALT-magnitude axis of the bleed scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 57); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_bleed_amount_received_percent": {
+    "doc": "Modifies the magnitude of bleed DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (takes weaker bleed). The RECEIVED-magnitude axis of the bleed scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 58); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_bleed_duration_percent": {
+    "doc": "Modifies the DURATION of bleed DoT this actor APPLIES. Amount is a fraction ~1.0-relative modifier; positive = bleed lasts more ticks/rounds. The DEALT-duration axis of the bleed scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 59); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_bleed_duration_received_percent": {
+    "doc": "Modifies the duration of bleed DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (bleed fades faster). The RECEIVED-duration axis of the bleed scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 60); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "stress_dot_amount_percent": {
+    "doc": "Modifies the MAGNITUDE of stress DoT this actor DEALS. Amount is a fraction ~1.0-relative modifier; positive = stronger stress ticks. The DEALT-magnitude axis of the stress-DoT scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 61); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "stress_dot_amount_received_percent": {
+    "doc": "Modifies the magnitude of stress DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (takes weaker stress-DoT ticks). The RECEIVED-magnitude axis of the stress-DoT scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 62); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "stress_dot_duration_percent": {
+    "doc": "Modifies the DURATION of stress DoT this actor APPLIES. Amount is a fraction ~1.0-relative modifier; positive = stress-DoT lasts more ticks/rounds. The DEALT-duration axis of the stress-DoT scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 63); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "stress_dot_duration_received_percent": {
+    "doc": "Modifies the duration of stress DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (fades faster). The RECEIVED-duration axis of the stress-DoT scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 64); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "shuffle_dot_duration_percent": {
+    "doc": "Modifies the DURATION of shuffle DoT this actor APPLIES. Amount is a fraction ~1.0-relative modifier; positive = the self-shuffle affliction lasts more ticks/rounds. Shuffle has only a duration axis (no magnitude axis) in the matrix. Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 65); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "shuffle_dot_duration_received_percent": {
+    "doc": "Modifies the duration of shuffle DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (the shuffle affliction fades faster). Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 66); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_heal_dot_amount_percent": {
+    "doc": "Modifies the MAGNITUDE of heal-over-time (regen) this actor GRANTS. Amount is a fraction ~1.0-relative modifier; positive = stronger regen per tick. The DEALT-magnitude axis of the hp_heal_dot scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 67); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_heal_dot_amount_received_percent": {
+    "doc": "Modifies the magnitude of heal-over-time (regen) this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; positive = incoming regen heals more per tick (beneficial). The RECEIVED-magnitude axis of the hp_heal_dot scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 68); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_heal_dot_duration_percent": {
+    "doc": "Modifies the DURATION of heal-over-time (regen) this actor GRANTS. Amount is a fraction ~1.0-relative modifier; positive = regen lasts more ticks/rounds. The DEALT-duration axis of the hp_heal_dot scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 69); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_heal_dot_duration_received_percent": {
+    "doc": "Modifies the duration of heal-over-time (regen) this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; positive = incoming regen lasts more ticks/rounds on self (beneficial). The RECEIVED-duration axis of the hp_heal_dot scaling matrix.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 70); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "torch_decrease_percent": {
+    "doc": "Modifies the amount by which torch light is DECREASED by events/actions (e.g. curios or attacks that dim the light). Amount is a fraction ~1.0-relative modifier; NEGATIVE means light drops less per event (helpful for high-light play). Medium confidence. Distinct from torchlight_burn_percent (the passive burn-down rate).",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 71); PARAMETER_GLOSSARY.md Torch/light"
+  },
+  "torch_increase_percent": {
+    "doc": "Modifies the amount by which torch light is INCREASED when refueled (torches, light-restoring curios). Amount is a fraction ~1.0-relative modifier; positive = refuels restore more light. Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 72); PARAMETER_GLOSSARY.md Torch/light"
+  },
+  "ignore_stealth": {
+    "doc": "Attacker-side flag: this actor's attacks can target and hit stealthed enemies (bypasses the stealth state). A boolean flag with no magnitude. Mirrors the skill-level .ignore_stealth field; counters the stealth stat.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 73); PARAMETER_GLOSSARY.md Core stat & damage"
+  },
+  "transfer_buff_from_attacker_chance": {
+    "doc": "Chance to steal/transfer a buff from an attacker when this actor is hit. Amount is a fractional chance (0-1); positive = steals attacker buffs more often. Medium confidence on exact transfer resolution. Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 74); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "transfer_debuff_from_attacker_chance": {
+    "doc": "Chance to transfer one of this actor's own debuffs onto an attacker when hit (offloading a debuff onto the aggressor). Amount is a fractional chance (0-1); positive = offloads debuffs more often. Medium confidence. Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 75); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "random_target_friendly_chance": {
+    "doc": "Chance a skill randomly targets a FRIENDLY instead of the intended target (a confusion/misdirection debuff). Amount is a fractional chance (0-1); positive = more misfires onto allies. Medium confidence. Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 76); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "random_target_attack_chance": {
+    "doc": "Chance an attack randomly RETARGETS to a different enemy than intended (confusion/misdirection). Amount is a fractional chance (0-1); positive = more wild-swing retargeting. Medium confidence. Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 77); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "guard_duration_percent": {
+    "doc": "Modifies the DURATION of guard this actor GRANTS to others (how long its guard state lasts on the guarded ally). Amount is a fraction ~1.0-relative modifier; positive = guard lasts longer. The GRANTED-side of the guard-duration pair (see guard_duration_received_percent). Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 78); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "guard_duration_received_percent": {
+    "doc": "Modifies the DURATION of guard this actor RECEIVES (how long it stays guarded when another actor guards it). Amount is a fraction ~1.0-relative modifier; positive = stays guarded longer. The RECEIVED-side of the guard-duration pair. Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 79); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "stress_on_miss": {
+    "doc": "Stress inflicted on THIS actor when it MISSES an attack (a self-stress penalty). Amount is a RAW stress magnitude (flat), not a fraction; positive = accrues that much self-stress on each miss. Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 80); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "stress_from_idle_in_town": {
+    "doc": "Stress gained by a hero while idle (benched, not on a roster/activity) in town. Amount is a RAW stress magnitude (flat); positive = accrues stress while waiting around. Low confidence — code-registered but the idle-town accrual hook is not fully traced.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 81); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "quirk_tag_evolution_duration": {
+    "doc": "Duration control for quirk-tag evolution (a lifecycle flag governing how long a quirk-tag evolution stage lasts). Amount is a raw duration in evolution units. Low confidence — code-registered but the evolution system it drives is not fully decompiled.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 82)"
+  },
+  "deathblow_chance": {
+    "doc": "Modifies deathblow chance — depending on context, the chance to be killed by a deathblow at 0 HP on Death's Door, or (attacker-side) the chance to land a killing blow. Amount is a fractional chance modifier (0-1). Sign/direction depends on the context: a NEGATIVE deathblow-received value is a survival buff, while a positive attacker-side value increases lethality. Note the paired resistance sub_type death_blow specifically resists the killing blow. Chance clamps at 100.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 83) + §3.2 (death_blow resist); PARAMETER_GLOSSARY.md Core stat & damage"
+  },
+  "heartattack_stress_heal_percent": {
+    "doc": "Modifies stress-heal received in the heart-attack / max-stress (200) context — the brink state where a second breakdown can be fatal. Amount is a fraction ~1.0-relative modifier; positive = better recovery back from the brink. Crimson Court / high-stress-specific. Low confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 84); PARAMETER_GLOSSARY.md Healing & stress"
+  },
+  "riposte_duration_percent": {
+    "doc": "Modifies the DURATION of riposte buffs this actor gets. Amount is a fraction ~1.0-relative modifier; positive = the riposte state lasts more ticks/rounds. Complements the riposte state flag and the riposte_on_hit/miss_chance combat stats. Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 85); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "buff_duration_percent": {
+    "doc": "Modifies the DURATION of buffs this actor applies. Amount is a fraction ~1.0-relative modifier; positive = the actor's applied buffs last longer. A meta/lifecycle scaler over other buffs' durations. Medium confidence.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 86); PARAMETER_GLOSSARY.md Turn/position mechanics"
+  },
+  "ignore_guard": {
+    "doc": "Attacker-side flag: this actor's attacks ignore guard redirection and strike the originally intended target instead of the guardian. A boolean flag with no magnitude. Mirrors the skill-level .ignore_guard field; counters the guarded state.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 87); PARAMETER_GLOSSARY.md Core stat & damage"
+  },
+  "hp_dot_burn": {
+    "doc": "Grants (or modifies) a burn damage-over-time on HP (Color of Madness DLC). Amount is RAW HP lost per tick (per round). Positive = more HP loss per round. Burn is the newest DoT and has the fullest matrix: magnitude/received scaling plus hp_dot_burn_decay_percent and wildfire_apply_adjacent_targets.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 88); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_burn_amount_percent": {
+    "doc": "Modifies the MAGNITUDE of burn DoT this actor DEALS. Amount is a fraction ~1.0-relative modifier; positive = stronger burn ticks. The DEALT-magnitude axis of the burn scaling matrix (CoM DLC).",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 89); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_burn_amount_received_percent": {
+    "doc": "Modifies the magnitude of burn DoT this actor RECEIVES. Amount is a fraction ~1.0-relative modifier; NEGATIVE is beneficial (takes weaker burn ticks). The RECEIVED-magnitude axis of the burn scaling matrix (CoM DLC).",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 90); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "wildfire_apply_adjacent_targets": {
+    "doc": "Makes this actor's burn contagious — burn spreads (wildfire) to targets adjacent to the burning victim. A flag buff with no magnitude (Color of Madness DLC). Medium confidence on exact spread mechanics.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 91); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "hp_dot_burn_decay_percent": {
+    "doc": "Modifies the DECAY rate of burn DoT — how quickly burn stacks/intensity fall off over time (a CoM burn-specific mechanic). Amount is a fraction ~1.0-relative modifier; positive = burn fades faster, negative = burn lingers longer. Medium confidence. Unlike other DoTs, burn uses decay rather than a fixed duration.",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 92); PARAMETER_GLOSSARY.md DOT matrix"
+  },
+  "cure_burn_chance": {
+    "doc": "Per-turn chance to cure burn on SELF. Amount is a fractional chance (0-1); positive = shrugs off active burn more often. Evaluated per turn while burning; chance clamps at 100. Its _received sibling (cure_burn_received_chance) handles cures from other actors. (CoM DLC)",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 93); PARAMETER_GLOSSARY.md Cures"
+  },
+  "cure_burn_received_chance": {
+    "doc": "Chance to cure burn when this actor is TARGETED by a cure from another actor. Amount is a fractional chance (0-1); positive = incoming cures clear burn more reliably. Medium confidence. Chance clamps at 100. (CoM DLC)",
+    "ref": "BUFFS_REFERENCE.md §2 (idx 94); PARAMETER_GLOSSARY.md Cures"
+  }
+}

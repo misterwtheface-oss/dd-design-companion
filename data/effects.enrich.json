@@ -1,0 +1,706 @@
+{
+  "dotBleed": {
+    "doc": "Applies a bleed damage-over-time. The int argument is the per-tick bleed amount stored at effect+0x134; the engine drives it through the bleed branch (local_c38=5), scaling the tick by the target's and source's bleed resist/mods and running it for .duration rounds (effect+0x154). Each application emits a bleed buff-group entry. Requires .duration; add .dot_irresistible true to bypass the bleed-resist roll.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "dotPoison": {
+    "doc": "Applies a blight (poison) DoT. The int argument is the per-tick amount stored at effect+0x26 and is the primary DoT branch (param_4+0x26 != 0 => local_c38=4), scaled by the target's poison mods and ticking for .duration rounds. Cured by .cure_poison / .cure. Use .dot_irresistible true to skip the poison-resist roll.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "dotBurn": {
+    "doc": "Applies a burn DoT (Color of Madness). The int argument is the per-tick amount at effect+0x27 (burn branch local_c38=0x58); on a crit the amount is multiplied by 1.5 with ceilf, and it is scaled by the target's burn resist/mods. Runs for .duration rounds and is cured by .cure_burn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "dotStress": {
+    "doc": "Ticks stress on the target each round (stress-over-time branch, effect+0x28, local_c38=0x22). The per-tick amount is scaled by stress mods and applied for .duration rounds. Unlike instant .stress this is a DoT and does not need .queue; it is cleared by .clearDotStress.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "dotShuffle": {
+    "doc": "A periodic forced reposition: the int at effect+0x14c drives the shuffle DoT branch (local_c38=0x23), applying a shuffle each round the DoT is active. Amount and duration follow the usual per-tick / .duration pattern.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "dotHpHeal": {
+    "doc": "A heal-over-time (regen) tick. The int at effect+0x2a runs the HoT branch (local_c38=0x24), applying a positive per-round heal modified by heal-received mods for .duration rounds. This is round-scoped; for a battle-long regen banner author an hp_dot_heal buff in buffs.json and apply it via .buff_ids instead.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "dotSource": {
+    "doc": "Tags the Buff::Source id used when the DoT is applied, identifying who/what applied it for stacking and clearing rules. The string is hashed and resolved against the same 34-entry bsrc_* table as .buff_source_type (0x22 = not-found), stored at effect+0x29. Values are the bsrc_* ids such as bsrc_skill, bsrc_trinket, bsrc_quirk, bsrc_riposte, bsrc_crit.",
+    "ref": "EFFECTS_REFERENCE.md · .buff_source_type / .dotSource — 34 (bsrc_*)"
+  },
+  "dot_irresistible": {
+    "doc": "Boolean (effect+0x13c) consumed in the DoT-build block: when true the DoT's resistance roll is skipped so it always lands regardless of the target's bleed/poison/burn resist. Pair with any dot* field to make it guaranteed.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "actor_dot": {
+    "doc": "Selects a pre-defined named actor-DoT definition rather than an inline bleed/poison/burn. The string argument is read into a 0x200 buffer, hashed with the rolling x0x35 hash to an int id, and stored at effect+0x3d4; the referenced DoT record is applied at runtime.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "stress": {
+    "doc": "Deals instant stress to the target (the vanilla 'Stress N' effects). The float at effect+0x4c, if >0 and the roll plus stress-resist passes, calls the actor's deal-stress vtable slot [0x24]. Must be .queue'd — the validator warns on an unqueued stress effect (all 66 vanilla stress effects are queued). Distinct from the .dotStress DoT, which does not need queueing.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "health_damage": {
+    "doc": "A direct HP-damage amount (float at effect+0x1ec) applied outside the normal weapon roll. In the parser/apply pair it is only stored; the actual hit is executed by a downstream damage routine that reads the .damage_type (effect+0x3dc) and .damage_source_type (effect+0x3e4) parsed alongside it, so pair those for correct attribution.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "health_damage_blocks": {
+    "doc": "Number of damage blocks to grant/deal, parsed via atoll and stored at effect+0x2e0. It is stored only in the core parse/apply pair and consumed by a downstream damage-block routine, not executed inline.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "lifedrain": {
+    "doc": "Life-steal: the performer heals for approximately this int amount as a share of the damage dealt. This is one of the nine Crimson-Court hash-dispatched fields — its name-string is absent from the binary and matched by a computed hash rather than a literal compare, so the parse mechanism is code-confirmed but the exact heal fraction is data-derived (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended / non-literal fields §B"
+  },
+  "antihealaoe": {
+    "doc": "Applies anti-heal (healing-received-down) across AoE targets; takes an int flag. One of the hash-dispatched Crimson-Court-era fields: matched by computed hash (name-string absent from the binary), so the parse mechanism is code-confirmed but semantics are data-derived (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended / non-literal fields §B"
+  },
+  "debuffenemy": {
+    "doc": "Routes the effect's debuff onto an enemy target; takes an int flag. Hash-dispatched (name-string not present in the binary, matched by computed hash), so the parse mechanism is code-confirmed and the semantics are data-derived (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended / non-literal fields §B"
+  },
+  "heal": {
+    "doc": "Heals the target by a flat float amount (effect+0x64). When >0 the apply fn calls the heal applier FUN_140479030, passing .can_crit_heal (effect+0x1a) so it may crit and .source_heal_type (effect+0x86) for attribution/scaling. Sets the effect result flag.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "heal_percent": {
+    "doc": "Heals the target for a fraction of (max) HP. The float at effect+0x330, when >0, is multiplied against a max-HP-derived value and fed to the same heal applier as .heal, sharing its crit path (.can_crit_heal) and .source_heal_type. Express the argument as a percent/fraction (e.g. 25%).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "can_crit_heal": {
+    "doc": "Boolean at effect+0x1a that lets the heal component of this effect critically hit (heal for extra). Read by the heal applier for both .heal and .heal_percent.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "source_heal_type": {
+    "doc": "Tags where a heal is attributed/scaled from. The string is resolved to one of 15 Heal::Action::Types values (stored at effect+0x86) and passed to the heal applier for both .heal and .heal_percent. Values: hero_skill, hero_skill_multi_target, monster_skill, monster_skill_multi_target, camp_skill, camp_skill_multi_target, effect, act_out, curio, eat, companion, debug, dot, flashback, damage_heal. Use the _multi_target variants for party heals so they scale correctly.",
+    "ref": "EFFECTS_REFERENCE.md · .source_heal_type — 15 (Heal::Action::Types)"
+  },
+  "healstress": {
+    "doc": "Reduces (heals) the target's stress by the float amount (effect+0x354). When >0 the apply fn calls the stress-heal vtable slot [0x25] on the target and sets the result flag.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "cure": {
+    "doc": "A combined cure: if the int argument is >= 1 it sets BOTH the poison-cure (effect+0x1b) and bleed-cure (effect+0xdc) to that value, clearing poison and bleed DoTs together. If absent or < 1 it falls through to the individual .cure_poison / .cure_bleed / .cure_burn reads.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "cure_poison": {
+    "doc": "Cures poison/blight DoTs on the target. The int at effect+0x1b, when >0, triggers RemoveDOTpoison (FUN_1404764f0) in the apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "cure_bleed": {
+    "doc": "Cures bleed DoTs on the target. The int at effect+0xdc, when >0, triggers RemoveDOTbleeding (FUN_140476590) in the apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "cure_burn": {
+    "doc": "Cures burn DoTs on the target. The int at effect+0x1c, when >0, triggers RemoveDOTburning (FUN_140476630) in the apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "cure_disease": {
+    "doc": "Cures a disease on the target. It is present in the parser's literal-compare chain (so it is valid to author) but is unused across base+DLC data, so its runtime behaviour is code-confirmed-valid rather than data-proven.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "clearDotStress": {
+    "doc": "Clears the target's DoT-stress (the creeping-dread stress tick). The int at effect+0x144, when >0 and the roll passes, calls Actor::RemoveDOTstress via vtable slot [0xe] with the Buff::Source. This is the 'snap them out of horror' tool; note it clears the stress DoT, not instant stress.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "clear_debuff": {
+    "doc": "Strips N debuffs from the target. The value is parsed via atoll into effect+0x42c and is the number/flag of clear-debuff-valid debuffs to remove. Which buffs are eligible is governed by each buff's .buff_is_clear_debuff_valid flag.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "combat_stat_buff": {
+    "doc": "A flag (int at effect+0x1d) marking this effect as an inline combat-stat buff, which is the only gateway that lets the *_rating_add / *_multiply stat sub-tokens (damage, dodge, prot, speed, acc, crit, HP, riposte) reach the effect via the buff registry. Positive values buff, negative debuff. It counts toward the mutual-exclusivity check: an effect may carry only one of buff_ids / buff_type / (combat_stat_buff or riposte). A damage swing needs both the low and high sub-tokens bundled in one effect.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "damage_low_add": {
+    "doc": "Combat-stat-buff sub-token (the 'add' component of the damage_low stat, base 1.0). Applies a flat additive to the actor's low (minimum) damage bound while the buff is active. Reached only through .combat_stat_buff and typically paired with damage_high_add for a full flat swing.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "damage_low_multiply": {
+    "doc": "Combat-stat-buff sub-token: the 'multiply' component of damage_low, a multiplicative modifier to the low damage bound expressed as a fraction around 0 (15% => +15%, -20% => a Weaken). Reached only via .combat_stat_buff and usually paired with damage_high_multiply to move the whole damage range.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "damage_high_add": {
+    "doc": "Combat-stat-buff sub-token: the 'add' component of the damage_high stat (base 1.0). Flat additive to the actor's high (maximum) damage bound while the buff is active. Reached only through .combat_stat_buff.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "damage_high_multiply": {
+    "doc": "Combat-stat-buff sub-token: the 'multiply' component of damage_high, a multiplicative modifier (fraction) to the high damage bound. Standard partner to damage_low_multiply so a percentage swing hits both bounds.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "defense_rating_add": {
+    "doc": "Combat-stat-buff sub-token: the 'add' component of the defense_rating stat (base 100.0), i.e. the player-facing DODGE stat. Flat additive to dodge while the buff is active; negative lowers dodge. Reached only via .combat_stat_buff.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "protection_rating_add": {
+    "doc": "Combat-stat-buff sub-token intended as the additive component of protection_rating (player-facing PROT). Note the reference flags .protection_rating_add as not directly compared in the two core functions (low confidence) — it is handled through the combat-stat-buff parsing path; author PROT changes via .combat_stat_buff and verify token spelling against real .effects.darkest data.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "speed_rating_add": {
+    "doc": "Combat-stat-buff sub-token: the additive mutator of the speed_rating stat (player-facing SPD/initiative). It is not a standalone effect field; it is registered in the stat-buff registry and applied via FUN_140472010, reaching an effect only through .combat_stat_buff.",
+    "ref": "EFFECTS_REFERENCE.md · §C sub-tokens"
+  },
+  "attack_rating_add": {
+    "doc": "Combat-stat-buff sub-token: the additive component of the attack_rating stat (player-facing ACC). A negative value is effectively a blind. The name is registered only in the stat-buff name table, not compared in the two core functions, so it reaches an effect via .combat_stat_buff (low direct confidence).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "crit_chance_add": {
+    "doc": "Combat-stat-buff sub-token: the 'add' component of the crit_chance stat (base 100.0, flag 0x100). Applies a flat additive modifier to crit chance when the effect's .combat_stat_buff is active. Express as a fraction/percent; reached only via .combat_stat_buff.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "critical_rating": {
+    "doc": "An alias of the crit stat's add component (.crit_chance_add), not a separate stat — the canonical stat name is crit_chance and there is no distinct critical_rating entry in the table. Treat it as the crit add and prefer crit_chance_add; verify token spelling against actual .effects.darkest data (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "max_hp_add": {
+    "doc": "Combat-stat-buff sub-token for the additive component of the max_hp stat (player-facing HP). It is registered but has 0 inline uses in vanilla; author HP buffs as a buffs.json entry applied via .buff_ids rather than as an inline mutator. Reached only via .combat_stat_buff.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "max_hp_multiply": {
+    "doc": "Combat-stat-buff sub-token: the multiplicative component of the max_hp stat. Valid only via .combat_stat_buff and, like max_hp_add, unused inline in vanilla — prefer authoring HP changes as a buffs.json buff.",
+    "ref": "EFFECTS_REFERENCE.md · §D combat-stat-buff tokens"
+  },
+  "riposte_on_hit_chance_add": {
+    "doc": "Combat-stat-buff sub-token: an additive modifier to the chance the actor ripostes when it is hit. Not a standalone effect field — it is a stat-buff token applied through the combat-stat-buff path and reaches an effect only via .combat_stat_buff.",
+    "ref": "EFFECTS_REFERENCE.md · §C sub-tokens"
+  },
+  "riposte_on_miss_chance_add": {
+    "doc": "Combat-stat-buff sub-token: an additive modifier to the chance the actor ripostes when an attack misses it. Registered in the stat-buff registry and applied via FUN_140472010; inside an effect record it only takes effect through .combat_stat_buff (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "buff_ids": {
+    "doc": "Applies up to 8 named buff ids from shared/buffs/<mod>.buffs.json. The parser hand-tokenizes up to 8 space/quote-delimited tokens, hashes each and pushes it into the buff-id vector at effect+0x68. Use this (rather than an inline stat buff) when the buff needs a rule_type gate, a specific duration_type, cross-file reuse, resistance buffs, or the wider stat palette. It is one of the mutually-exclusive buff payloads (buff_ids / buff_type / combat_stat_buff / riposte).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "buff_is_clear_debuff_valid": {
+    "doc": "Boolean at effect+0x67 marking whether this buff is eligible to be removed by a clear-debuff effect. Set false to make a buff resist .clear_debuff.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "buff_type": {
+    "doc": "Selects the combat-stat buff category for a one-off inline buff authored without a buffs.json entry. The string is hashed to an int at effect+0x2ec and validated against the stat_type table; setting it gates reading of .buff_sub_type (effect+0x5e) and .buff_amount (effect+0x66). One of the mutually-exclusive buff payloads; the validator errors if buff_type is set but buff_amount == 0.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "buff_sub_type": {
+    "doc": "Sub-type companion to an inline .buff_type / .buff_amount grant, narrowing the buff's domain. Read only when .buff_type is set (stored at effect+0x5e). Sub-type domains are catalogued in BUFFS_REFERENCE stat_type registry.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "buff_amount": {
+    "doc": "Magnitude of the inline .buff_type buff (float at effect+0x66). Only read when .buff_type is set, and the parser errors if buff_type is present but amount == 0, so it must be > 0.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "buff_duration_type": {
+    "doc": "Controls how long the buff lasts by hashing the string and matching an 11-value enum (0..0xb) stored at effect+0x75. Values include round, combat_end, quest_end, quest_complete, activity_end and similar lifetimes. If absent AND any dot/damage field is set it defaults to index 8. Combine with .duration 1 .buff_duration_type combat_end for a battle-long banner.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "buff_source_type": {
+    "doc": "Categorizes the buff's source, which drives stacking and clearing rules. The string is hashed against a 34-entry bsrc_* table and stored at effect+0x334. Values run bsrc_notspecified, bsrc_skill, bsrc_instantSkill, bsrc_affliction, bsrc_virtue, bsrc_quirk, bsrc_trinket, bsrc_trinket_set, bsrc_riposte, bsrc_crit and more (34 total; same table as .dotSource).",
+    "ref": "EFFECTS_REFERENCE.md · .buff_source_type / .dotSource — 34 (bsrc_*)"
+  },
+  "riposte": {
+    "doc": "Grants the Riposte status: when >0 (int at effect+0xb4) the apply fn builds a riposte buff-group entry (type 0x1a) and applies it to the target for .duration rounds, using .riposte_effect (effect+0x1cf) as the counter-hit's sub-effect. The token has a trailing space in the parser. The validator requires .duration and enforces mutual-exclusivity with buff_ids / buff_type / combat_stat_buff.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "riposte_effect": {
+    "doc": "Sub-field of .riposte (stored at effect+0x1cf): the effect id that the riposte counter-hit applies when it triggers, e.g. a bleed or a stun rider on the counterattack.",
+    "ref": "EFFECTS_REFERENCE.md · §C sub-tokens"
+  },
+  "riposte_validate": {
+    "doc": "Boolean parsed into effect+0x16c (note the trailing space in the parser token) that gates whether a riposte grant is validated. The apply fn consumes the riposte state at +0x2d but this validate flag is read elsewhere (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "stun": {
+    "doc": "Accumulates the float value into the target's stun meter at actor+0x204 (takes the max), then fires event 0x18 (applied) or 0x19 (resisted) after a stun-resist check. Must be .queue'd (the validator warns otherwise). Resisted by the target's Stun resist.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "daze": {
+    "doc": "Applies the Daze status (Fire's Edge), the parallel of stun. It is in the parser's literal-compare chain (valid to author) but is absent from base+DLC data, so it is code-confirmed-valid but data-unproven; treat it as must-be-queued like stun.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "tag": {
+    "doc": "Applies the Marked/tagged status. The int at effect+0x60, when >0 and the chance passes, builds a mark buff (group id 9, id 0x2b) and applies it via event 0x23 — unless the target is currently stealthed (actor+0xc14 > 0), in which case it is blocked and event 0x32 fires instead. A self-mark (.target performer) draws fire; marking an enemy enables ally vs-marked bonuses. Requires .duration.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "guard": {
+    "doc": "The performer guards the targeted ally, redirecting hits to the guardian. The int at effect+0x158 (parsed at +0x2b), when >0 and performer != target, builds a Guard buff-group entry, dispatches event 0x24 and applies it to the target for .duration rounds. The validator warns if guard is set without .duration. To make an ally guard the performer instead, add .swap_source_and_target true.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "stealth": {
+    "doc": "Grants the Stealth status. The int at effect+0x2e4 (parsed via atoll), when non-zero and the chance passes, builds a stealth buff struct (buff-group id 9, id 0x2b) and applies it to the target. Removed with .unstealth.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "immobilize": {
+    "doc": "Roots the target by setting its immobilized flag. The int at effect+0x34 (parsed at +0xd), when >0 and the chance passes, writes byte 1 to target+0x1024. Cleared by .unimmobilize, which writes 0 to the same byte.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "control": {
+    "doc": "Mind-control: takes control of the target for N turns (int at effect+0xe). It must NOT be .queue'd — the validator warns 'is control effect but queued' if both are set. Released with .uncontrol (effect+0x74).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "controlled_burn_amount": {
+    "doc": "Amount for the 'controlled burn' mechanic (int at effect+0x58), paired positionally with .controlled_burn_duration.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "controlled_burn_duration": {
+    "doc": "Duration in rounds for the controlled-burn mechanic (int at effect+0x2c4), the duration half of the pair with .controlled_burn_amount.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "unstun": {
+    "doc": "Removes stun. The float at effect+0x54, when >0 and the roll passes, resets the target's stun meter (actor+0x204) to 0, pushes a stun-clear onto the combat queue, and fires event 0x21/0x22.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "undaze": {
+    "doc": "Clears the Daze status, the parallel of .unstun (Fire's Edge). Present in the parser but unused in base data, so code-confirmed-valid but data-unproven.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "untag": {
+    "doc": "Removes the Marked/tagged status — the symmetric inverse of .tag (int at effect+0x64). Runtime removal is handled by the buff/mark subsystem.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "unstealth": {
+    "doc": "Removes the Stealth status (inverse of .stealth). The int at effect+0x2e8 (parsed via atoll) marks the stealth clear; removal is handled by the stealth subsystem.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "unimmobilize": {
+    "doc": "Frees a rooted target. The int at effect+0x6c, when >0 and the roll passes, clears the immobilized flag by writing 0 to target+0x1024 (the mirror of .immobilize, which sets it to 1).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "uncontrol": {
+    "doc": "Releases a .control (mind-control), stored at effect+0x74. Parser-confirmed valid; the paired setter is .control.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "clearguarding": {
+    "doc": "Clears the 'guarding' status on the guardian side (int at effect+0x15c), stopping the actor from guarding an ally. Distinct from .clearguarded, which acts on the protected side.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "clearguarded": {
+    "doc": "Clears the 'being guarded' status on the target (int at effect+0x2c), removing the protection it was receiving. The guardian-side counterpart is .clearguarding.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "clear_riposte": {
+    "doc": "Removes the riposte status from the target (int at effect+0x2e; the parser token has a trailing space).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "clearvirtue": {
+    "doc": "Strips the Virtue status from the target. It is in the parser's literal-compare chain (valid to author) but is absent from base+DLC data, so code-confirmed-valid and data-unproven.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "remove_vampire": {
+    "doc": "Removes the vampire (Crimson Curse) affliction. This is NOT a combat effect field — it is a TOWN/estate effect-type name registered with a base-53 hash alongside bonus_recruit/dead_recruit; in the combat parser the value is stored (int at effect+0x128 via atoi) but the curse is stripped by the town/curse system, not the combat apply fn.",
+    "ref": "EFFECTS_REFERENCE.md · Extended §A"
+  },
+  "push": {
+    "doc": "Moves the target forward (positive ranks). Combined with .pull, the net move is stored at effect+0x1a4 (push if push>0, else -pull), and the apply fn runs the move/knockback block when +0x1a4 != 0, computing move onset and repositioning. The validator warns that move effects must not be queued and must be applicable on death (.can_apply_on_death).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "pull": {
+    "doc": "Moves the target backward. It is combined with .push into a single net-move value at effect+0x1a4 (net = push if push>0, else -pull), so pull is encoded as a negative/backward move and runs the same move/knockback block. Move effects must not be queued and should carry .can_apply_on_death.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "shuffletarget": {
+    "doc": "Presence flag (no argument) detected via strstr; sets the shuffle-mode field at effect+0x35 = 1, taking priority over .shuffleparty. The apply fn performs a targeted single-actor reposition using a weighted rank roll, then moves the actor, gated by chance vs move-resist. .instant_shuffle also forces +0x35=1 and sets the instant byte +0x1ac.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "shuffleparty": {
+    "doc": "Presence flag (no argument) via strstr; sets shuffle-mode +0x35 = 2 unless .shuffletarget already set it to 1. When +0x35 == 2 and chance passes, the apply fn shuffles the target's entire party formation (hero-side FUN_1405ac3b0 or monster-side FUN_1405abee0).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "instant_shuffle": {
+    "doc": "Presence flag via strstr: forces shuffle mode (+0xd4 = 1) and sets the instant byte +0x1ac = 1. In the move/shuffle block the +0x1ac byte selects the instant reposition path (FUN_1405ac6b0/FUN_1405ac1e0) rather than the queued knockback path.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "kill": {
+    "doc": "Force-kills the target. The int at effect+0xbc (parsed at +0x2f), when >0 and the chance passes, sets the HP flag to -1, marks death (state 0xe with death-type fields), fires MonsterDeathEvent and runs the death routines. Restrict which monster types it can execute with .kill_enemy_types; gate on a valid kill target with .requires_kill_target.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "kill_enemy_types": {
+    "doc": "A list of up to 4 monster-type id strings (each hashed and pushed into the vector at effect+0x30) that restrict which monster types the .kill applies to. Consumed by the kill/monster-type filter outside the two core functions.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "requires_kill_target": {
+    "doc": "Boolean at effect+0x4be gating the effect so it only applies if the target is a valid kill target. A condition rider, not branched in the core apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "torch_increase": {
+    "doc": "Raises the dungeon light meter. The float at effect+0x198, when non-zero and the roll passes, computes roundf((light+1.0) * amount) and applies the change via FUN_140606990. Must be .queue'd (validator warns otherwise).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "torch_decrease": {
+    "doc": "Lowers the dungeon light meter. The float at effect+0x19c, when non-zero and the roll passes, computes roundf((light+1.0) * -amount) and applies it via FUN_140606990 (negative = reduce torch). Must be .queue'd.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_monsters": {
+    "doc": "Up to 4 monster-class-id strings (space/quote-separated), each hashed and combined with its positional chance/rank/limit/roll into a summon-table entry at effect+0x36. In the apply fn the entries drive a weighted-random pick and spawn. Sets the is-summon flag; the validator requires the effect target performer.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_chances": {
+    "doc": "Up to 4 floats parsed positionally to pair with .summon_monsters as each summon row's selection weight. The apply fn does a weighted-random pick over the entries using these chances (chance_sum).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_count": {
+    "doc": "Number of monsters to spawn (int at effect+0x1c8 via atoll). The apply fn's summon loop uses it to drive how many picks occur; the validator warns if a summon with non-empty entries has count 0.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_ranks": {
+    "doc": "Up to 4 rank-strings (e.g. '1', '2', '12'), parsed positionally with .summon_monsters, setting which rank(s) each summon may occupy.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_limits": {
+    "doc": "Up to 4 ints setting each entry's cap on how many of that monster class may exist. In the weighted pick, entries whose current on-field count of that class is >= the limit are skipped.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_does_roll_initiatives": {
+    "doc": "Up to 4 bool/int values, one per summon entry, governing whether each summoned monster rolls into the initiative order for the current round.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_erase_data_on_roll": {
+    "doc": "Boolean at effect+0x1cc controlling whether a rolled summon entry is removed from the pool after use. When set, the chosen entry is spliced out (memmove) so it can't be rolled again; when clear, the weighted pick is non-consuming.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_can_spawn_loot": {
+    "doc": "Boolean at effect+0x1cd (bit 0x1cd) on summoned monsters controlling whether they can drop loot. Consumed inside the summon-spawn path (confidence medium on runtime read).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "summon_rank_is_previous_monster_class": {
+    "doc": "Boolean at effect+0x1ce: when set the summoned monster inherits the rank/position of the monster class it replaced (previous), instead of an explicit .summon_ranks value. Consumed by the spawn subsystem (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "spawn_target_actor_base_class_id": {
+    "doc": "A base monster-class id (string) hashed and stored as an int at effect+0x87, identifying the base class to spawn as the effect's target actor. Stored only in the parser; the spawn consumer lives outside the two core functions (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "spawn_sycophant": {
+    "doc": "Summons Sycophant add(s); takes an int count. A Crimson-Court hash-dispatched field: its name-string is absent from the binary and matched by a computed hash, so the parse mechanism is code-confirmed but its semantics are data-derived (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended §B"
+  },
+  "set_mode": {
+    "doc": "Shifts the actor into a declared mode/stance. The mode-name string (<=64 bytes) at effect+0x364 is hashed at runtime; the apply fn scans the target monster's mode list (monster+0xb38..0xb40, stride 0x90) for a matching mode id and calls FUN_140478530 to switch the actor into it, flagging the active monster if it is the target. Gated by chance >= roll. Pairs with the skill-line .valid_modes for stance-gated skills.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_id": {
+    "doc": "Swaps the target's monster class to a single class. Used only if .set_monster_class_ids is absent: the class-id string is hashed and pushed as a single {hash, chance=1.0} entry into the monster-class list at effect+0x76/0x77, which the apply fn resolves and rolls to perform the class swap. The various set_monster_class_* flags (reset_hp, reset_buffs, clear_initative, etc.) tune what carries over.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_ids": {
+    "doc": "Up to 8 class-id strings tokenized into the monster-class list at effect+0x76/0x77, each hashed and paired with a .set_monster_class_chances weight. Takes precedence over the singular .set_monster_class_id; the apply fn rolls one class by cumulative weighted chance.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_chances": {
+    "doc": "Up to 8 float weights, parsed positionally with .set_monster_class_ids, defining the selection probability of each candidate class. The apply fn builds an entries/chances/chance_sum table and rolls one class via cumulative chance x RNG.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_reset_hp": {
+    "doc": "Boolean at effect+0x79: when set, seeds the class-swap change mask to reset HP on the class swap. Combined with the carry_over_hp_min_percent floor (effect+0x3cc), packed into the applier argument.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_reset_buffs": {
+    "doc": "Boolean at effect+0x3c9: when set, ORs a large group of flags into the class-swap change mask, stripping buffs and stat overrides during the swap.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_reset_scale": {
+    "doc": "Boolean at effect+0x3d2: when set, ORs a flag into the class-swap change mask that resets the monster's visual/size scale on the swap.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_clear_initative": {
+    "doc": "Boolean at effect+0x7a (spelling 'initative' is verbatim in the game data): when set, ORs a flag into the class-swap change mask so the monster's initiative is cleared during the class swap.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_clear_monster_brain_cooldowns": {
+    "doc": "Boolean at effect+0x3d1: when set, ORs a flag into the class-swap change mask that clears the monster's brain/skill cooldowns during the class swap.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "set_monster_class_carry_over_hp_min_percent": {
+    "doc": "An HP-carryover floor for a monster-class swap (packed into the high dword of the applier argument alongside set_monster_class_reset_hp). It is in the parser's literal-compare chain (valid to author) but unused in base data.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "xform_vampire": {
+    "doc": "Transforms the performer into the vampiric (Crimson Curse) form; takes an int flag. A Crimson-Court hash-dispatched field: the name-string is absent from the binary and matched by computed hash, so the parse mechanism is code-confirmed and semantics are data-derived (confidence medium). Transform/vampire logic lives outside the two core functions.",
+    "ref": "EFFECTS_REFERENCE.md · Extended §B"
+  },
+  "steal_buff_stat_type": {
+    "doc": "Names a stat-type category to steal from the target's buffs. The string is read into a 0x200 buffer, hashed and stored at effect+0x2d8. A steal effect requires .target be target / target_group / target_group_other or the validator warns; the actual transfer is handled by the buff/steal subsystem (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "steal_buff_source_type": {
+    "doc": "Steals buffs matching a source-type. The string is hashed and stored at effect+0x2dc; when non-zero and chance passes, the apply fn installs a steal-buff predicate lambda and calls FUN_140474330 to transfer matching buffs from the target to the performer. Validation requires .target be target / target_group(_other).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "bonus_action_next_turn": {
+    "doc": "Boolean at effect+0x4bf that grants the target a bonus action on its next turn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "initiative_change": {
+    "doc": "A delta to the actor's initiative (int at effect+0x214, parsed via atoi). Stored in the parser; the change is applied by the turn/initiative system outside the two core functions (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "refreshes_skill_uses": {
+    "doc": "Boolean at effect+0x4bd that refreshes limited (per-battle/per-turn) skill uses. Handled by skill-use bookkeeping outside the core apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "trigger_limit_maximum_increase": {
+    "doc": "An int (atoi) at effect+0x2d4 that raises the maximum trigger-limit counter on the buff/effect's trigger tracking. Consumed by the buff-trigger subsystem, not branched in the core apply fn (confidence medium). Note: only the _increase variants exist; the guide's set/decrease forms are unbacked.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "trigger_limit_minimum_increase": {
+    "doc": "An int (atoi) at effect+0x2d0 that raises the minimum trigger-limit counter. Consumed by the buff-trigger subsystem, not branched in the core apply fn (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "disease": {
+    "doc": "Grants a quirk/disease by id. The disease-id string at effect+0x20f is hashed and applied via the quirk path (QuirkAppliedEvent); despite the field name it is NOT disease-restricted for a named id — it resolves against the single global quirk library and grants any quirk (positive, negative, or disease), byte-identical to Building::Activity::AddQuirk. Only .disease \"any\" is disease-filtered (random from the disease pool). The name is historical.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "gain_random_quirk_negative": {
+    "doc": "Boolean at effect+0x4c4: when true, the target gains a random NEGATIVE quirk. The runtime roll happens outside the two core functions (parse confidence high, semantics low).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "gain_random_quirk_positive_percentage": {
+    "doc": "An int percent chance (0-100, atoi) at effect+0x4c0 to grant a random POSITIVE quirk. The roll is applied outside the two core functions (parse confidence high, semantics low).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "gain_trinket": {
+    "doc": "Grants a specific trinket by id. The trinket-id string is stored at effect+0x505 and the grant is handled by the trinket/inventory subsystem (FUN_1407c1ad0), not the combat apply fn.",
+    "ref": "EFFECTS_REFERENCE.md · Extended §A"
+  },
+  "gain_random_trinket": {
+    "doc": "Grants a random trinket from a rarity/pool id. The pool-id string is stored at effect+0x4c5 and consumed by the trinket/inventory subsystem (FUN_1407c1ad0), not the combat apply fn.",
+    "ref": "EFFECTS_REFERENCE.md · Extended §A"
+  },
+  "destroy_trinket": {
+    "doc": "Boolean at effect+0x546: when true the effect destroys a trinket on the target. Runtime consumption is in the trinket/inventory subsystem (FUN_1407c1ad0), outside the two core functions.",
+    "ref": "EFFECTS_REFERENCE.md · Extended §A"
+  },
+  "use_item_type": {
+    "doc": "Names the item category/type to use (string at effect+0x43c). Gated together with .use_item_id: when both are non-empty and the roll passes, the apply fn triggers the item-use subsystem (FUN_1404255c0). The validator requires BOTH .use_item_type and .use_item_id.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "use_item_id": {
+    "doc": "Identifies which specific item to consume/use (string at effect+0x47c). Paired with .use_item_type — when both are set and the roll passes, the item-use subsystem (FUN_1404255c0) fires. The validator requires both fields.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "capture": {
+    "doc": "Capture amount/flag (int at effect+0x2a4, parsed via atoi; the parser token has a trailing space). Drives the Shrieker-style 'capture into party' mechanic. Pair with .capture_remove_from_party to pull the captured member out of the party.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "capture_remove_from_party": {
+    "doc": "An int at effect+0x55 (atoi) controlling whether/how many party members are removed from the party on capture. The companion of .capture.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "crimson_harvest": {
+    "doc": "The Crimson Court blood-harvest mechanic; takes an int flag. A hash-dispatched field: the name-string is absent from the binary and matched by a computed hash, so the parse mechanism is code-confirmed but the semantics are data-derived (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended §B"
+  },
+  "crimson_swarm": {
+    "doc": "Spawns or advances the Crimson swarm; takes an int flag. A Crimson-Court hash-dispatched field (name-string not present in the binary, matched by computed hash), code-confirmed parse mechanism with data-derived semantics (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended §B"
+  },
+  "blood_counter": {
+    "doc": "Increments a blood/curse counter token on the actor; takes an int flag. A Crimson-Court hash-dispatched field, matched by computed hash (name-string absent from the binary), so parse mechanism is code-confirmed and semantics are data-derived (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended §B"
+  },
+  "viscount_feed_corpse": {
+    "doc": "Viscount boss mechanic: consume a corpse to heal/empower; takes an int flag. A Crimson-Court hash-dispatched field (name-string absent from the binary, matched by computed hash), so the parse mechanism is code-confirmed and semantics are data-derived (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md · Extended §B"
+  },
+  "curio": {
+    "doc": "Marks/flags the effect as a curio-interaction result (int at effect+0x34). Full runtime consumption is in curio resolution, not the two core functions (parse confidence high, semantics low).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "curio_result_type": {
+    "doc": "Names the curio result category (string, cap 0x10, at effect+0x254), e.g. positive / negative / loot, used by curio resolution. It is not consumed in the combat apply fn but is conventionally set on combat effects (positive vs negative) for UI/attribution.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "gain_random_quirk_positive": {
+    "doc": "Grants a random POSITIVE quirk to the target. This is the always-on companion of gain_random_quirk_positive_percentage (which gates it on a percent roll); it is grounded in the same quirk-grant path as .disease and the negative-quirk field, with runtime application outside the two core functions.",
+    "ref": "EFFECTS_REFERENCE.md · EFFECT_COMPONENTS"
+  },
+  "monsterType": {
+    "doc": "Identifies a monster type for the effect's condition/target (string at effect+0x264). Combined with .keyStatus it sets the skill-instant-style flag at effect+0x2c8. Stored only; not executed in the combat apply fn (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "requires_burning_target": {
+    "doc": "Gate rider that only lets the effect land if the target currently has the Burning status. It is present in the parser (valid to author) but absent from base+DLC data, so code-confirmed-valid and data-unproven. Companion to .requires_not_burning_target.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "requires_not_burning_target": {
+    "doc": "Gate rider that only lets the effect land if the target is NOT burning. Present in the parser but absent from base+DLC data (code-confirmed-valid, data-unproven). Companion to .requires_burning_target.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "can_apply_on_corpse": {
+    "doc": "Boolean at effect+0x3a5 allowing the effect to apply to a corpse target.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "can_apply_on_death": {
+    "doc": "Boolean at effect+0x3a4 allowing the effect to apply even when the target is dying/dead. The apply fn reads it for move-effect gating, and the validator warns if a move (push/pull) effect lacks it.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "swap_source_and_target": {
+    "doc": "Boolean at effect+0x358 (parsed at +0x6b): when set, the performer and target roles are swapped for this effect. The apply fn swaps the source/target actor pointers early based on this flag, so the effect resolves against the swapped actors — e.g. to make the targeted ally guard the performer.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "performer_rank_target": {
+    "doc": "Boolean at effect+0x2bc: when true, rank targeting is resolved from the performer's rank rather than the target's. Consumed by target/rank resolution outside the two core functions.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "is_in_inventory": {
+    "doc": "Boolean at effect+0x547 requiring that the (trinket/item) carrying the effect be in inventory for the effect to apply. A condition rider, not consumed in the combat apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "keyStatus": {
+    "doc": "A key/quest-status token (string at effect+0xec) hashed with the x0x35 rolling hash into a uint at effect+0x12c. Together with .monsterType it drives the skill-instant-style flag at effect+0x2c8. Not executed in the combat apply fn (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "individual_target_actor_rolls": {
+    "doc": "Makes each target roll independently (per-target rolls) rather than sharing one roll across the group. Present in the parser (valid to author) but unused in base data, so code-confirmed-valid and data-unproven.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "affliction_blockable_chance": {
+    "doc": "Probability that the effect is blocked while the target is Afflicted (companion to .virtue_blockable_chance at effect+0x360). Present in the parser but unused in base data; consumed by the resolve/block subsystem.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "virtue_blockable_chance": {
+    "doc": "Probability (float at effect+0x360) that the effect is blocked while the target is Virtued. Companion to .affliction_blockable_chance; consumed by the resolve/block subsystem, not branched in the core apply fn (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "rank_target": {
+    "doc": "Explicitly sets the rank the effect targets (a rank-string). Present in the parser's literal-compare chain (valid to author) but unused in base data. The clear counterpart is .clear_rank_target.",
+    "ref": "EFFECTS_REFERENCE.md · §D valid-but-unused"
+  },
+  "clear_rank_target": {
+    "doc": "Clears/targets a specific rank. The rank-string is stored at effect+0x2b4 normally, or at effect+0x57 when the string contains '@' (the alternate/absolute rank encoding). The set counterpart is .rank_target.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "name": {
+    "doc": "The effect's identifier and the first field parsed per record. The string (0x40 buffer) is hashed with the x0x35 hash and used as the map key to insert/look up the Effect object in the effect registry (a red-black tree). Every effect record must open with .name.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "target": {
+    "doc": "Selects who the effect resolves against. The string is hashed and matched against an 11-entry table stored at effect+0x44 (invalid asserts 'EffectTarget: Invalid type'). Values: performer (self), target, performer_group (own side), performer_group_other (own side minus self), target_group, target_group_other, target_enemy_group, target_enemy_rank, target_enemy_random, this_trinket, global. The apply fn branches on this throughout — buff/heal application gates on target(1)/target_group(4), and steal requires 1 or 4.",
+    "ref": "EFFECTS_REFERENCE.md · .target — 11 (EffectTarget)"
+  },
+  "chance": {
+    "doc": "The core proc chance of the effect (float/fraction at effect+0x48). The apply fn compares the incoming roll against this value pervasively — stun, daze, dot, kill and other gates all check roll <= chance. Express as a fraction/percent; 100% (or absence) means always-apply.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "on_hit": {
+    "doc": "Boolean at effect+0x2c9 marking whether the effect fires on a hit result. The validator errors if an effect defines neither on_hit nor on_miss (unless it is an item effect), so most combat effects set .on_hit true.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "on_miss": {
+    "doc": "Boolean at effect+0x2ca marking whether the effect fires on a miss result. Subject to the same validator as on_hit — an effect must define on_hit and/or on_miss (or .item).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "queue": {
+    "doc": "Boolean at effect+0x2cc marking the effect as queued, so it is applied on the queued/turn-resolution pass rather than immediately. Many validators depend on it: stun, instant stress, and torch changes must be queued; move (push/pull) and control effects must NOT be queued.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "apply_once": {
+    "doc": "Boolean at effect+0x2cb marking the effect as apply-once. Validation warns if a skill-instant apply-once effect uses a team target type ('apply once skill instant effect but has team target').",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "apply_with_result": {
+    "doc": "Boolean at effect+0x2cd: the effect's application is gated on / carries the parent skill's hit result.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "duration": {
+    "doc": "Number of rounds/turns (int at effect+0x154) for the DoT/buff/riposte/guard applied by this effect. Every DoT branch multiplies its per-tick setup by this value and passes it as the buff-group duration. The validator requires a non-zero duration for riposte and guard effects.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "bark": {
+    "doc": "A localization/bark id (string, 0x40 buffer, at effect+0x7d) spoken when the effect fires.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "has_description": {
+    "doc": "Boolean at effect+0x434 marking whether the effect shows a description string. Not consumed in the combat apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "crit_doesnt_apply_to_roll": {
+    "doc": "Boolean at effect+0x3a6: when set, a critical roll on this effect does not affect the effect's own success roll (the crit is cosmetic/damage-only and not re-rolled). Parse confidence high; runtime semantics medium.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "skill_instant": {
+    "doc": "Boolean at effect+0x59 marking the effect as an instantly-resolving skill (overrides the default computed from bark/keyStatus). The parser warns if a skill_instant effect lacks 100% chance, lacks a performer target, or is apply_once with a team target.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "is_trigger_effect": {
+    "doc": "Boolean at effect+0x2ce marking the effect as trigger-fired (fired by a trigger) rather than directly applied. Not branched in the core apply fn.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "item": {
+    "doc": "Grants/consumes an item count (int at effect+0x174). In the apply fn it is only referenced by the on_hit/on_miss validator (an effect with .item is exempt from needing on_hit/on_miss); the grant itself is handled by an inventory routine outside the two core functions (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "damage_type": {
+    "doc": "The damage category (string hashed to an enum at effect+0x3dc) passed to the damage vcall. 20 values: unknown (default/sentinel), trap, obstacle, hunger, attack, bleed, healing, poisoned, captor, ddexit, townexit, death, heartattack, theblood, effect, quirkevolutiondeath, reflect, riposte, additionaleffect, burn. Index 0x14 is invalid and triggers 'invalid damage type'.",
+    "ref": "EFFECTS_REFERENCE.md · .damage_type — 20"
+  },
+  "damage_source_type": {
+    "doc": "Who/what the damage is attributed to (string hashed to an enum at effect+0x3e4) passed to the damage-application vcall. 14 values: unknown (sentinel), hunger, trap, obstacle, friendly, monster, hero, friendly_quirk_actout, friendly_trait_actout, item, effect, quirk, reflect, trinket. Index 0xe is invalid and triggers 'invalid damage source type'.",
+    "ref": "EFFECTS_REFERENCE.md · .damage_source_type — 14"
+  },
+  "damage_source_data": {
+    "doc": "A source-data id for damage attribution: the string (0x200 buffer) is hashed to an int at effect+0x3e0 and passed alongside the .damage_type/.damage_source_type into the damage vcall.",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "skips_endless_wave_curio": {
+    "doc": "Boolean at effect+0x4bc, a pure data flag consumed by endless-wave/curio logic; it is stored on the struct but not branched inside the two core functions (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "guaranteed_town_event": {
+    "doc": "Boolean at effect+0x545 flagging a guaranteed town-event trigger. A town-flow effect, not read in the combat apply fn (confidence medium).",
+    "ref": "EFFECTS_REFERENCE.md"
+  },
+  "battle_start_effect_id": {
+    "doc": "NOT a standalone effect field — it is the actor-definition token .battle_start_effect_ids (a list of up to 8 effect ids) parsed by ActorClass::LoadDefinition into the actor's mode struct; those effects fire at combat start rather than from an effect record.",
+    "ref": "EFFECTS_REFERENCE.md · Extended §A"
+  },
+  "is_continue_turn": {
+    "doc": "A combat_skill line field (not an effect record field): the skill does not end the actor's turn, giving a free cast / bonus action. Usually paired with .per_turn_limit to cap the free casts.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "ignore_stealth": {
+    "doc": "A combat_skill line field: the skill can target stealthed actors (bypasses the stealth-block that normally prevents targeting). Lives on the combat_skill line, not in an effect record.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "ignore_guard": {
+    "doc": "A combat_skill line field: the skill bypasses guard redirection and strikes the intended target instead of the guardian. Skill-line field, not an effect-record field.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "move": {
+    "doc": "A combat_skill line field: the performer moves forward/back when using the skill, given as two rank counts (forward back). It fires even on a miss — the Lunge/Lance/Point-Blank self-move pattern. Distinct from the effect-record push/pull, which move the target.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "valid_modes": {
+    "doc": "A combat_skill line field: which modes/stances the skill is usable in. It is the stance-gating half of the mode pattern, pairing with the effect-record .set_mode that switches the actor's mode.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "per_battle_limit": {
+    "doc": "A combat_skill line field capping how many times the skill can be used per battle.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "per_turn_limit": {
+    "doc": "A combat_skill line field capping how many times the skill can be used per turn, often paired with .is_continue_turn for a limited free cast.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "self_target_valid": {
+    "doc": "A combat_skill line field: the skill can target the performer itself.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "extra_targets_chance": {
+    "doc": "A combat_skill line field: the chance to hit extra targets beyond the primary (cleave/chain), paired with .extra_targets_count. Express as a fraction/percent.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "extra_targets_count": {
+    "doc": "A combat_skill line field: how many additional targets can be struck beyond the primary, paired with .extra_targets_chance.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "is_crit_valid": {
+    "doc": "A combat_skill line field: whether the skill can critically hit.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "launch": {
+    "doc": "A combat_skill line field: which ranks the skill can be cast from, given as a rank-string of rank digits ('~' negates a rank). Distinct from .target (which ranks the skill hits).",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  },
+  "skill_target": {
+    "doc": "The .target field on the combat_skill line (target geometry): which ranks the skill hits, as a rank-string where '~' marks AoE and '@' marks ally/self targeting. This is distinct from the effect-record .target enum that selects performer/target/group; both are written .target but live on different lines.",
+    "ref": "EFFECT_COMPONENTS.md · skill-line"
+  }
+}

@@ -132,19 +132,18 @@
     const cat = state.cat[key] || "all";
     const q = state.search[key] || "";
 
-    // category chips (with per-group counts), "All" first
     const total = itemsOf(s).length;
-    const chip = (id, name, count, color) => {
-      const g = gmap.get(id);
-      const style = color ? `style="--aff-color:${esc(color)};--aff-text:${esc(g ? g.text : "#111")}"` : "";
-      return `<span class="cat-chip ${id === cat ? "active" : ""}" ${style} data-action="cat" data-view="${key}" data-cat="${esc(id)}">
-        ${esc(name)} <span class="cat-count">${count}</span></span>`;
-    };
     const counts = new Map();
     for (const it of itemsOf(s)) { const gid = itemGroupId(s, it); counts.set(gid, (counts.get(gid) || 0) + 1); }
-    const chips = [chip("all", "All", total, null)]
-      .concat(groupsOf(s).map(g => chip(g.id, g.name, counts.get(g.id) || 0, g.color)))
-      .join("");
+
+    // Compact category filter: a single <select> (was a wall of chips — bad on mobile).
+    const opt = (id, name, count) =>
+      `<option value="${esc(id)}" ${id === cat ? "selected" : ""}>${esc(name)} (${count})</option>`;
+    const options = [opt("all", "All categories", total)]
+      .concat(groupsOf(s).map(g => opt(g.id, g.name, counts.get(g.id) || 0))).join("");
+    const activeGroup = gmap.get(cat);
+    const catIcon = activeGroup && activeGroup.icon
+      ? `<img class="cat-select-icon" src="${esc(activeGroup.icon)}" alt="" onerror="this.style.display='none'">` : "";
 
     const shown = filteredItems(key);
     const tiles = shown.length
@@ -153,8 +152,10 @@
 
     return `
       <p class="surface-intro">${INTRO[key] || ""}</p>
-      <div class="cat-tabs">${chips}</div>
       <div class="surface-toolbar">
+        <label class="cat-select-wrap">${catIcon}
+          <select class="cat-select" data-view="${key}">${options}</select>
+        </label>
         <input class="surface-search" type="search" placeholder="Search ${esc(s.label.toLowerCase())}…"
                data-view="${key}" value="${esc(q)}" />
         <span class="result-count">${shown.length} / ${total}</span>
@@ -170,10 +171,12 @@
     if (it.usage_count != null) foot.push(`<span class="pill">${it.usage_count}× used</span>`);
     if (it.standalone === false) foot.push(`<span class="pill">modifier</span>`);
     if (it.conf) foot.push(`<span class="pill conf-${esc(it.conf)}">${esc(it.conf)}</span>`);
+    const icon = it.icon
+      ? `<img class="tile-icon" src="${esc(it.icon)}" alt="" onerror="this.style.visibility='hidden'">` : "";
     return `<div class="cat-tile" style="--aff-color:${esc(color)}" data-action="detail" data-view="${s.key}" data-id="${esc(it.id)}">
-      <div class="tile-name">${esc(it.name)}</div>
+      <div class="tile-name">${icon}<span>${esc(it.name)}</span></div>
       <div class="tile-id">${esc(it.id)}</div>
-      <div class="tile-summary">${esc(it.summary || "")}</div>
+      <div class="tile-summary">${esc(it.doc || it.summary || "")}</div>
       <div class="tile-foot">${foot.join("")}</div>
     </div>`;
   }
@@ -197,7 +200,9 @@
 
     let html = "";
     html += `<div class="detail-tags">${g ? tagBanner(g) : ""}${it.conf ? `<span class="pill conf-${esc(it.conf)}">${esc(it.conf)} confidence</span>` : ""}</div>`;
-    html += `<p class="lead">${esc(it.summary || "")}</p>`;
+    html += `<p class="lead">${esc(it.doc || it.summary || "")}</p>`;
+    // if a rich doc replaced the summary as the lead, keep the short summary as a one-line teaser
+    if (it.doc && it.summary && it.summary !== it.doc) html += `<p class="teaser">${esc(it.summary)}</p>`;
     if (rows.length) html += `<h3>Details</h3><dl class="kv">${rows.join("")}</dl>`;
 
     if (Array.isArray(it.params) && it.params.length) {
@@ -214,8 +219,10 @@
     if (Array.isArray(it.keywords) && it.keywords.length) {
       html += `<h3>Also known as</h3><div class="kw-row">${it.keywords.map(k => `<span class="kw">${esc(k)}</span>`).join("")}</div>`;
     }
+    if (it.ref) html += `<p class="ref-cite">Grounded in <code>${esc(it.ref)}</code></p>`;
 
-    renderDetail(`${esc(it.name)} <span class="head-id">${esc(it.id)}</span>`, html);
+    const titleIcon = it.icon ? `<img class="head-icon" src="${esc(it.icon)}" alt="" onerror="this.style.display='none'">` : "";
+    renderDetail(`${titleIcon}${esc(it.name)} <span class="head-id">${esc(it.id)}</span>`, html);
   }
   const kv = (k, v) => `<dt>${esc(k)}</dt><dd>${v}</dd>`;
 
@@ -296,6 +303,12 @@
     if (grid) grid.innerHTML = shown.length ? shown.map(it => tileHTML(s, it)).join("") : `<p class="empty-state">No matches.</p>`;
     if (count) count.textContent = `${shown.length} / ${itemsOf(s).length}`;
   }
+  function onAppChange(e) {
+    if (!e.target.classList.contains("cat-select")) return;
+    state.cat[e.target.dataset.view] = e.target.value;
+    persist();
+    renderApp();
+  }
   function onDetailClick(e) {
     const el = e.target.closest("[data-action]");
     if (!el) { if (e.target.id === "detail-overlay-root") closeDetail(); return; }
@@ -309,6 +322,7 @@
   // ── init ──
   document.getElementById("app").addEventListener("click", onAppClick);
   document.getElementById("app").addEventListener("input", onAppInput);
+  document.getElementById("app").addEventListener("change", onAppChange);
   document.getElementById("detail-overlay-root").addEventListener("click", onDetailClick);
   document.addEventListener("keydown", onKeydown);
   renderApp();
