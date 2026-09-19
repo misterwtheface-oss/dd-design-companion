@@ -19,15 +19,25 @@
   // The top-level views. `carriers` = the author-first front door; catalog views read
   // DATA.surfaces[key] (the palette they link into); bridge is bespoke; soon = P1 stub.
   const VIEWS = [
-    { key: "designElements", label: "Design Elements", kind: "carriers" },
-    { key: "effects",   label: "Effects",       kind: "catalog" },
-    { key: "buffStats", label: "Buff Stats",    kind: "catalog" },
-    { key: "buffRules", label: "Rule Gates",    kind: "catalog" },
-    { key: "bridge",    label: "Bridge",        kind: "bridge"  },
+    { key: "wizard",    label: "Wizard",         kind: "wizard" },
+    { key: "designElements", label: "Design Elements", kind: "carriers", group: "appendix" },
+    { key: "effects",   label: "Effects",       kind: "catalog", group: "appendix" },
+    { key: "buffStats", label: "Buff Stats",    kind: "catalog", group: "appendix" },
+    { key: "buffRules", label: "Rule Gates",    kind: "catalog", group: "appendix" },
+    { key: "bridge",    label: "Bridge",        kind: "bridge",  group: "appendix" },
     { key: "heroes",    label: "Hero Designs",  kind: "soon"    },
     { key: "balance",   label: "Balance Scales",kind: "soon"    },
   ];
   const carriers = () => (DATA.carriers && DATA.carriers.items) || [];
+  const carrierById = (id) => carriers().find((c) => c.id === id);
+
+  // the 4 wizard questions (Q1 is the entry-point pick; Q2-Q4 are the accordion steps)
+  const WIZ_STEPS = [
+    { key: "building", q: "What are you building?" },
+    { key: "forced",   q: "What's forced by this starting point?" },
+    { key: "choices",  q: "What design choices does it give you?" },
+    { key: "limits",   q: "What's the hard limit here?" },
+  ];
 
   const INTRO = {
     designElements: "The things you <b>author</b>, and how each one reaches the palette. A <b>buff</b> is the leaf (a stat modifier, gatable by any rule); an <b>effect</b> is the only bridge to it for carriers that can't hold a buff. Pick what you're building to see its wiring — <b>B</b> holds buffs directly · <b>E</b> carries effects · <b>T</b> fires on a trigger · <b>S</b> sets base stats.",
@@ -43,13 +53,14 @@
     let s = {};
     try { s = JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch { s = {}; }
     return {
-      view: VIEWS.some(v => v.key === s.view && v.kind !== "soon") ? s.view : "designElements",
+      view: VIEWS.some(v => v.key === s.view && v.kind !== "soon") ? s.view : "wizard",
       cat: s.cat || {},        // { viewKey: activeCategoryId | "all" }
       search: s.search || {},  // { viewKey: query }
+      wizard: s.wizard && typeof s.wizard === "object" ? { pick: s.wizard.pick || null, step: s.wizard.step || 1 } : { pick: null, step: 1 },
     };
   }
   function persist() {
-    localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, cat: state.cat, search: state.search }));
+    localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, cat: state.cat, search: state.search, wizard: state.wizard }));
   }
 
   // ── helpers ──
@@ -86,10 +97,11 @@
       const active = v.key === state.view ? " active" : "";
       return `<button class="${active.trim()}" data-action="view" data-view="${v.key}">${esc(v.label)}</button>`;
     };
-    // divider between the Possibility-Space views and the P1 surfaces
-    const poss = VIEWS.filter(v => v.kind !== "soon").map(btn).join("");
+    const wizard = VIEWS.filter(v => v.kind === "wizard").map(btn).join("");
+    const appendix = VIEWS.filter(v => v.group === "appendix").map(btn).join("");
     const soon = VIEWS.filter(v => v.kind === "soon").map(btn).join("");
-    return `<nav class="surface-nav">${poss}<span style="flex:1"></span>${soon}</nav>`;
+    // Wizard is the front door; the reference surfaces sit under an "Appendix" label.
+    return `<nav class="surface-nav">${wizard}<span class="nav-label">Appendix</span>${appendix}<span style="flex:1"></span>${soon}</nav>`;
   }
 
   // ═══ MAIN RENDER ═══
@@ -100,7 +112,8 @@
 
     const view = VIEWS.find(v => v.key === state.view);
     let body = "";
-    if (view.kind === "carriers") body = carriersHTML();
+    if (view.kind === "wizard") body = wizardHTML();
+    else if (view.kind === "carriers") body = carriersHTML();
     else if (view.kind === "catalog") body = catalogHTML(view.key);
     else if (view.kind === "bridge") body = bridgeHTML();
 
@@ -116,7 +129,84 @@
     if (newMain) newMain.scrollTop = prevScroll;
   }
 
-  // ═══ DESIGN ELEMENTS (carriers) — the author-first front door ═══
+  // ═══ WIZARD — the guided front door (4 questions over the 14 carriers) ═══
+  const VIEW_LABEL = { designElements: "Design Elements", effects: "Effects", buffStats: "Buff Stats", buffRules: "Rule Gates", bridge: "Bridge" };
+  function wizLink(link) {
+    if (!link || !link.view) return "";
+    return `<button class="wiz-link" data-action="goto-view" data-view="${esc(link.view)}"${link.id ? ` data-id="${esc(link.id)}"` : ""}>${esc(VIEW_LABEL[link.view] || link.view)} →</button>`;
+  }
+  function wizList(arr, kind, empty) {
+    if (!Array.isArray(arr) || !arr.length) return `<p class="muted">${esc(empty)}</p>`;
+    return `<ul class="wiz-list">` + arr.map(it => `<li class="wiz-item wiz-${kind}">
+      <div class="wiz-item-h">${esc(it.element || it.choice || "")}</div>
+      <div class="wiz-item-b">${esc(it.why || it.detail || "")}</div>
+      ${wizLink(it.link)}
+    </li>`).join("") + `</ul>`;
+  }
+  function wizLimits(arr) {
+    if (!Array.isArray(arr) || !arr.length) return `<p class="muted">No hard engine limit recorded for this entry point.</p>`;
+    return `<ul class="wiz-list">` + arr.map(it => `<li class="wiz-item wiz-limit">
+      <div class="wiz-item-h">✕&nbsp; ${esc(it.limit || "")}</div>
+      <div class="wiz-item-b">${esc(it.why || "")}</div>
+    </li>`).join("") + `</ul>`;
+  }
+
+  function wizardHTML() {
+    const w = state.wizard;
+    const items = carriers();
+    if (!items.length) return `<p class="empty-state">No carriers. Run <code>node build-data.mjs</code>.</p>`;
+
+    // Q1 — entry-point picker
+    if (!w.pick || !carrierById(w.pick)) {
+      const cards = items.map(c => {
+        const icon = c.icon ? `<img class="carrier-icon" src="${esc(c.icon)}" alt="" onerror="this.style.visibility='hidden'">` : "";
+        return `<div class="carrier-card" data-action="wizard-pick" data-id="${esc(c.id)}">
+          <div class="carrier-head">${icon}<span class="carrier-name">${esc(c.name)}</span></div>
+          ${wiringBadges(c)}
+          <div class="carrier-summary">${esc(c.summary || "")}</div>
+        </div>`;
+      }).join("");
+      return `<p class="surface-intro"><b>Step 1 — What are you building?</b> Pick a starting point; the wizard walks what it <b>forces</b>, the <b>choices</b> it gives you, and the <b>hard limit</b> you'll hit. Full reference lives in the <b>Appendix</b> tabs.</p>
+        <div class="carrier-grid">${cards}</div>`;
+    }
+
+    // Q2–Q4 — stepped accordion for the picked carrier
+    const c = carrierById(w.pick);
+    const step = Math.min(Math.max(w.step || 1, 1), 4);
+    const rail = WIZ_STEPS.map((s, i) => {
+      const n = i + 1, cls = n === step ? "active" : (n < step ? "done" : "");
+      return `<button class="wiz-step ${cls}" data-action="wizard-step" data-step="${n}">
+        <span class="wiz-step-n">${n}</span><span class="wiz-step-q">${esc(s.q)}</span></button>`;
+    }).join("");
+
+    let content = "";
+    if (step === 1) {
+      content = `<div class="wiz-building">
+        <div class="carrier-head">${c.icon ? `<img class="carrier-icon" src="${esc(c.icon)}" alt="">` : ""}<span class="carrier-name">${esc(c.name)}</span>${c.conf ? `<span class="pill conf-${esc(c.conf)}">${esc(c.conf)}</span>` : ""}</div>
+        ${wiringBadges(c)}
+        <p class="lead">${esc(c.summary || "")}</p>
+        ${c.bridge_to_buff ? `<p class="muted"><b>Reaches a buff via:</b> ${esc(c.bridge_to_buff)}</p>` : ""}
+        ${c.file ? `<p class="carrier-file">${esc(c.file)}</p>` : ""}</div>`;
+    } else if (step === 2) content = wizList(c.forced, "forced", "Nothing extra is strictly forced — this element stands alone.");
+    else if (step === 3) content = wizList(c.choices, "choices", "No branching choices recorded yet.");
+    else content = wizLimits(c.limits);
+
+    const nextBtn = step < 4
+      ? `<button data-action="wizard-next">Next →</button>`
+      : `<button data-action="wizard-restart">Build something else ↺</button>`;
+    return `
+      <div class="wiz-rail">${rail}</div>
+      <div class="wiz-panel">
+        <h2 class="wiz-q">${esc(WIZ_STEPS[step - 1].q)}</h2>
+        ${content}
+      </div>
+      <div class="wiz-nav">
+        <button class="ghost" data-action="wizard-back">${step === 1 ? "← Change selection" : "← Back"}</button>
+        ${nextBtn}
+      </div>`;
+  }
+
+  // ═══ DESIGN ELEMENTS (carriers) — appendix reference ═══
   function wiringBadges(c) {
     const b = [];
     if (c.buff_direct && c.buff_direct.can) b.push(`<span class="wb wb-b" title="Holds buffs directly (no effect needed)">B · direct buff</span>`);
@@ -363,6 +453,19 @@
         openDetail(el.dataset.view, el.dataset.id); break;
       case "carrier":
         openCarrierDetail(el.dataset.id); break;
+      case "wizard-pick":
+        state.wizard = { pick: el.dataset.id, step: 1 }; persist(); renderApp(); break;
+      case "wizard-step":
+        state.wizard.step = Number(el.dataset.step); persist(); renderApp(); break;
+      case "wizard-next":
+        state.wizard.step = Math.min(4, (state.wizard.step || 1) + 1); persist(); renderApp(); break;
+      case "wizard-back":
+        if ((state.wizard.step || 1) > 1) state.wizard.step -= 1; else state.wizard.pick = null;
+        persist(); renderApp(); break;
+      case "wizard-restart":
+        state.wizard = { pick: null, step: 1 }; persist(); renderApp(); break;
+      case "goto-view":
+        state.view = el.dataset.view; persist(); renderApp(); break;
     }
   }
   function onAppInput(e) {

@@ -35,6 +35,21 @@ Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`
 - [ ] Live "do my design's references resolve?" checker.
 
 ## Log
+### 2026-09-19 — session 1d (reframe: guided Wizard front door)
+- **New front door = a Wizard** over 4 questions: (1) What are you building? → pick one of the 14
+  carriers · (2) What's forced by that start? · (3) What choices does it give? · (4) What's the hard
+  limit? Q1 = a carrier-card picker; Q2–Q4 = a **stepped accordion** (numbered rail + Back/Next) with
+  Forced (bronze) / Choices (cyan) / Hard-limit (red) cards; forced & choice items carry **jump-links
+  into the Appendix** palette surfaces.
+- **Appendix** = everything prior (Design Elements + Effects/Buff Stats/Rule Gates/Bridge), regrouped
+  under an "Appendix" nav label; still fully searchable/navigable. Wizard is now the default view.
+- **`data/wizard.enrich.json`** (merged onto carriers in build-data): forced/choices/limits per
+  carrier, grounded in HERO_COOKBOOK + carriers.json + the extract refs. Build validates every
+  wizard link resolves to a real view. Limits = engine "cannot"s (grounded). Soft caveats the author
+  flagged: camping "no combat triggers" (inferred), town 64 DistrictBuff cap (reported not re-verified),
+  afflictions trait_library schema (floor not full map), hero `.enter_effects` (boot-test) — all carried
+  as in-text caveats, not hard claims.
+
 ### 2026-09-19 — session 1c (reorg: Design Elements front door)
 - **New organizing principle — carriers over primitives.** Added a **Design Elements** surface as
   the author-first front door: the 14 content types you actually author, each shown with its

@@ -1,0 +1,633 @@
+{
+  "hero-combat-skill": {
+    "forced": [
+      {
+        "element": "An effect for any status/buff",
+        "why": "The combat_skill line only speaks accuracy, damage %, move, launch/target and use-limits. Any resistance, DoT, conditional modifier, stress/heal scaling or persistent stat must be fired as a named effect the skill lists via .effect.",
+        "link": { "view": "effects" }
+      },
+      {
+        "element": "A buff behind that effect",
+        "why": "To reach a resistance, a rule-gated stat, or any non-combat-stat stat_type, the effect must apply a named buffs.json entry through .buff_ids — the skill->effect->buff bridge.",
+        "link": { "view": "bridge" }
+      },
+      {
+        "element": "Static per-level atk/dmg/crit",
+        "why": "One combat_skill line exists per level 0-4; the raw .atk/.dmg/.crit live on each line and must be authored (vanilla keeps them static across all 5 levels).",
+        "link": { "view": "designElements", "id": "hero-combat-skill" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Inline vs named buff",
+        "detail": "A plain unconditional combat-stat swing (e.g. +8% dodge for the battle) can use inline .combat_stat_buff with no buffs.json entry; reach for .buff_ids only when you need a rule gate, a resistance, or a wider stat_type.",
+        "link": { "view": "bridge" }
+      },
+      {
+        "choice": "Rank-3 / rank-5 escalation",
+        "detail": "Escalation across ranks is authored by swapping WHICH effect the line fires at rank 3 vs rank 5, not by changing the static atk/dmg on the line.",
+        "link": { "view": "effects" }
+      },
+      {
+        "choice": "Rule-gate the payoff",
+        "detail": "A buff in the effect's .buff_ids unlocks all 55 rule_type gates (hpbelow, in_mode, monsterType, at_deaths_door...) plus is_false_rule inversion — the only route to conditional skill powers.",
+        "link": { "view": "buffRules" }
+      },
+      {
+        "choice": "Retype the Move slot",
+        "detail": "combat_move_skill and riposte_skill share the grammar; a Move slot can be turned into a stance toggle via .move 0 0 plus a .set_mode effect (Thorn/Cook pattern).",
+        "link": { "view": "designElements", "id": "mode-stance" }
+      },
+      {
+        "choice": "On-crit passive",
+        "detail": "The .info's crit: .effects fires author-chosen effects whenever the hero crits (e.g. a performer-targeted self-buff) — a signature hook separate from the skill line.",
+        "link": { "view": "effects" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "Skill line can't hold a buff",
+        "why": "A combat_skill line cannot carry a buff-id or a stat modifier; there is no field for a resistance, conditional, or persistent stat on the line itself."
+      },
+      {
+        "limit": "One buff-payload per effect",
+        "why": "Exactly ONE of buff_ids / inline combat_stat_buff / buff_type / riposte per effect — the validator errors on more than one."
+      },
+      {
+        "limit": "Inline reaches only 10 combat stats",
+        "why": "Inline .combat_stat_buff touches only the 10 combat stats and is unconditional; it cannot express resistances or any rule gate."
+      },
+      {
+        "limit": "Typos silently no-op",
+        "why": "Effect and buff names hash-resolve at runtime; a misspelled .effect or .buff_ids token does nothing (no error outside debug)."
+      }
+    ]
+  },
+  "hero-camping-skill": {
+    "forced": [
+      {
+        "element": "Typed effect entries",
+        "why": "A camping skill IS a list of typed effect entries (buff / heal / stress_heal / remove_disease / reduce_torch...), each with a chance and target scope — payloads arrive through these entries, not on the skill root.",
+        "link": { "view": "designElements", "id": "hero-camping-skill" }
+      },
+      {
+        "element": "A count in generation:",
+        "why": "How many camping skills a hero gets is set by the hero's generation: block; a NET-NEW hero authors 2 class-specific plus shared, an OFFICIAL hero reuses vanilla and authors none."
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Party buff via buff ids",
+        "detail": "A type:\"buff\" entry references buff ids, so it can carry any rule_type — though camp payoffs are usually plain unconditional party buffs.",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "choice": "Cure a disease",
+        "detail": "type:\"remove_disease\" is the only in-dungeon disease-cure vector outside the Sanitarium; it respects each quirk's can_remove_with_camping_skill flag.",
+        "link": { "view": "designElements", "id": "disease" }
+      },
+      {
+        "choice": "Target scope + chance",
+        "detail": "Each entry picks self / party target scope and a fire chance, letting one skill mix a self-heal, a party buff, and a torch cost."
+      }
+    ],
+    "limits": [
+      {
+        "limit": "Cannot ADD a quirk",
+        "why": "Vanilla camping can only remove diseases; there is no camping op to grant an ordinary quirk or negative."
+      },
+      {
+        "limit": "remove_disease is disease-only",
+        "why": "The removal path clears diseases (is_disease quirks), not ordinary negative quirks; ordinary negatives need Sanitarium or a curio Purge."
+      },
+      {
+        "limit": "No combat triggers",
+        "why": "Camping runs in the rest phase; it has none of the combat trigger hooks (on-hit, on-crit, round-end) that skills and trinkets expose."
+      }
+    ]
+  },
+  "trinket": {
+    "forced": [
+      {
+        "element": "A buffs.json entry per stat",
+        "why": "A trinket has no inline stat fields; every stat, resist or conditional it grants is a buff id in its buffs:[] list, which points at a buffs.json entry.",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "element": "Obtainability via loot",
+        "why": "A trinket only exists in-game if it sits in a loot table with chances>0; rarity plus a private loot table is how it drops (and how you class-lock it out of the generic pool)."
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Static bag vs event triggers",
+        "detail": "Two doors: buffs:[] applies stats passively while equipped, and any of the 22 <trigger>_additional_effects arrays fires effect lists on events (round_end, was_hit, on_kill, on_dodge...).",
+        "link": { "view": "bridge" }
+      },
+      {
+        "choice": "Rule-gate static buffs",
+        "detail": "Each buffs:[] entry carries any rule_type (has_quirk, at_deaths_door, negative_quirk_above, monsterType, hpbelow...) plus is_false_rule — a fully conditional static trinket buff with no effect involved.",
+        "link": { "view": "buffRules" }
+      },
+      {
+        "choice": "Lifecycle keys",
+        "detail": "trigger_limit / quest_uses / transform_on_* / destroy_on_triggers_exhausted let a trinket expend charges, transform, or self-destroy across a quest.",
+        "link": { "view": "designElements", "id": "trinket" }
+      },
+      {
+        "choice": "Set membership",
+        "detail": "Declaring a set_id ties this trinket to a set bonus that activates when 2+ members are equipped.",
+        "link": { "view": "designElements", "id": "trinket-set-bonus" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "No bare .effect field",
+        "why": "A trinket cannot carry a loose .effect like a skill line; effects reach it only through the 22 trigger arrays or a carrier buff's attack_additional_effect_ids."
+      },
+      {
+        "limit": "7 triggers force .target target",
+        "why": "The all_/on_dodge family (idx 9,10,11,12,14,15,18) has the firing site inject the actor, so their effects MUST be authored .target target or the loader warns and mis-targets."
+      },
+      {
+        "limit": "'all_' is per-member, not a group apply",
+        "why": "kill_all_heroes and friends loop each living member and apply the effect individually; you cannot address the whole party as one group object."
+      }
+    ]
+  },
+  "trinket-set-bonus": {
+    "forced": [
+      {
+        "element": "A buffs list only",
+        "why": "A set is literally { id, buffs:[...] }; its buff ids (source bsrc_trinket_set) are its only carried content, applied once 2+ members are equipped.",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "element": "2+ members declaring set_id",
+        "why": "The bonus only fires when at least two equipped trinkets share the set_id; fewer than two makes the loader warn 'could not find 2 or more Trinkets'.",
+        "link": { "view": "designElements", "id": "trinket" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Full buff palette + rule gates",
+        "detail": "Every set buff can use any of the 93 stat_types with any rule_type, is_false_rule and duration/lifecycle keys — the ceiling is the whole buff system.",
+        "link": { "view": "buffRules" }
+      },
+      {
+        "choice": "On-attack escape hatch",
+        "detail": "A carrier buff (may use a dummy stat_type at amount 0) with attack_additional_effect_ids is the only way a set fires a combat effect — on attack, any rule_type allowed.",
+        "link": { "view": "bridge" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "No trigger machinery",
+        "why": "A set has none of the trinket entry's <trigger>_additional_effects, no transform/expend keys — no round_end, was_hit, on_dodge or on_quest_complete hooks."
+      },
+      {
+        "limit": "On-attack is the only effect route",
+        "why": "The sole way to fire an effect from a set is a carrier buff's attack_additional_effect_ids; non-attack triggers must live on the member trinket entries instead."
+      }
+    ]
+  },
+  "quirk": {
+    "forced": [
+      {
+        "element": "Buffs carry the stat power",
+        "why": "A quirk has no inline stat fields; its buffs:[] list of buff ids is the actual stat effect. A behavioral-only quirk carries empty buffs and relies on description plus engine handling.",
+        "link": { "view": "buffStats" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Conditional trait buffs",
+        "detail": "Each quirk buff can carry any rule_type — the way to author 'a trait that only helps under condition X' (has_quirk, negative_quirk_above, actor_status...).",
+        "link": { "view": "buffRules" }
+      },
+      {
+        "choice": "Curio auto-interaction",
+        "detail": "A non-empty curio_tag plus curio_tag_chance makes the hero compulsively interact with tagged curios (a 'mania'); keep_loot governs whether loot is kept.",
+        "link": { "view": "designElements", "id": "curio" }
+      },
+      {
+        "choice": "Positive / negative / disease",
+        "detail": "is_positive and is_disease pick the slot pool; setting is_disease:true turns the same record into a disease with different caps and cure paths.",
+        "link": { "view": "designElements", "id": "disease" }
+      },
+      {
+        "choice": "DLC extended keys",
+        "detail": "evolution_class_id, contagious_class_id, slot_size, roster_limit, use_item_changes and tags enable evolving/contagious/rare/slot-heavy quirks — still delivering power through buffs[].",
+        "link": { "view": "designElements", "id": "quirk" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "Cannot carry or fire an effect",
+        "why": "A quirk has no trigger machinery; all conditional behavior must live in the buffs it references. Combat act-outs are a separate DLC-gated quirk_act_outs file, not the base record."
+      },
+      {
+        "limit": "No stat without a buff",
+        "why": "There are no inline stat fields on a quirk record; any modifier must be a buffs.json entry named in buffs:[]."
+      },
+      {
+        "limit": "Vanilla can't add via camping",
+        "why": "A quirk is a delivery TARGET of other buses (curio, .disease effect, add_quirk activity, persist.roster); camping cannot grant one — only remove diseases."
+      }
+    ]
+  },
+  "disease": {
+    "forced": [
+      {
+        "element": "is_disease:true on a quirk",
+        "why": "A disease is mechanically a quirk record with is_disease:true — same file, same buff model, only a different slot cap and cure paths.",
+        "link": { "view": "designElements", "id": "quirk" }
+      },
+      {
+        "element": "Buffs carry the penalties",
+        "why": "Like quirks, the buffs:[] list holds the stat penalties directly; almost all diseases are unconditional negative stat buffs.",
+        "link": { "view": "buffStats" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Inflict via .disease effect",
+        "detail": "The .disease \"<id>\" effect field can be attached to any monster attack, hero skill or trap to inflict a specific disease (it actually accepts ANY quirk id; only .disease \"any\" is disease-filtered).",
+        "link": { "view": "effects" }
+      },
+      {
+        "choice": "Stage / evolve over time",
+        "detail": "evolution_class_id plus evolution_duration_min/max auto-mutates the disease after N town-days; evolution_causes_death is optional (the CC vampirism chain).",
+        "link": { "view": "designElements", "id": "quirk" }
+      },
+      {
+        "choice": "Contagious spread",
+        "detail": "contagious_class_id plus a roster.contagion.json block spreads the disease hero-to-hero across idle/building/activity contexts.",
+        "link": { "view": "designElements", "id": "quirk" }
+      },
+      {
+        "choice": "slot_size to dominate slots",
+        "detail": "slot_size:3 (CC) fills all three disease slots with one disease, making it monopolize the hero's disease capacity."
+      }
+    ],
+    "limits": [
+      {
+        "limit": "No self-fired effect",
+        "why": "Like a quirk, the base disease record fires nothing on its own; only DLC use_item_dungeon_effects can trigger a combat effect on item use."
+      },
+      {
+        "limit": "Capped at 3 disease slots",
+        "why": "quirks_max_diseases is 3; a disease occupies the separate disease pool, not the 5 negative-quirk slots."
+      },
+      {
+        "limit": "Own cure paths only",
+        "why": "Diseases are cured via the Sanitarium disease_treatment activity or camping remove_disease (gated by can_remove_with_camping_skill), not ordinary negative-quirk treatment."
+      }
+    ]
+  },
+  "deaths-door": {
+    "forced": [
+      {
+        "element": "The deaths_door: block",
+        "why": "The behavior lives in the deaths_door: record on the hero (or monster) .info — three engine-timed buff-id lists plus an optional enter-effects list.",
+        "link": { "view": "designElements", "id": "deaths-door" }
+      },
+      {
+        "element": "Buff ids for held/recovery stats",
+        "why": ".buffs, .recovery_buffs and .recovery_heart_attack_buffs are arbitrary buff-id lists; which list an id sits in decides its timing, and each id points at a buffs.json entry.",
+        "link": { "view": "buffStats" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Make DD a reward",
+        "detail": "The three lists reach any buff, so DD can grant damage/crit/prot/dodge up instead of the vanilla ACC/DMG/SPD/SR penalties — a 'cornered animal' payoff.",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "choice": "enter_effects on entering DD",
+        "detail": ".enter_effects fires effect names the moment the actor enters Death's Door (heal, cure DoTs, guard, party buff, damage, even summon), throttled by .enter_effect_round_cooldown; boot-test since no vanilla hero uses it.",
+        "link": { "view": "effects" }
+      },
+      {
+        "choice": "Double-gate with DD rules",
+        "detail": "Buff rule_types at_deaths_door and ondeathsdoorenter let a buff self-gate on DD state, stacking with list placement.",
+        "link": { "view": "buffRules" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "Timing is engine-fixed by list",
+        "why": "You choose the buffs but not their timing — the engine applies each list at a fixed moment (held at DD / on recovery / after heart attack) by which list holds the id."
+      },
+      {
+        "limit": "Global constants aren't here",
+        "why": "deathblow_chance, self/party stress pulses and NG+ death cap live in shared/rules.json (mode-level), not in the .info deaths_door: block."
+      },
+      {
+        "limit": "Chance-to-die lever is elsewhere",
+        "why": "The per-hero chance to die is the .death_blow resistance in the resistances: block, not a field of deaths_door:."
+      }
+    ]
+  },
+  "afflictions-virtues": {
+    "forced": [
+      {
+        "element": "A trait_library buff-list",
+        "why": "An affliction/virtue is a trait_library.json entry that applies its buff ids while the resolve state is active; the stat/behavior payload is carried by those buffs.",
+        "link": { "view": "buffStats" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Cross-carrier resolve gating",
+        "detail": "Any buff on any carrier (skill, trinket, quirk) can self-gate on rule_type afflicted or virtued — giving a hero a distinct break-vs-steel payoff without touching trait_library.",
+        "link": { "view": "buffRules" }
+      },
+      {
+        "choice": "Custom afflicted barks",
+        "detail": "Optional custom afflicted barks (<class>+str_afflicted_<state>) flavor the resolve state alongside its buffs."
+      }
+    ],
+    "limits": [
+      {
+        "limit": "Not an effect-firing carrier",
+        "why": "The base-game resolve state runs through the buff / compromised.json path and fires no effects; combat misbehavior needs the DLC quirk_act_outs file, not trait_library."
+      },
+      {
+        "limit": "Distinct from the quirk system",
+        "why": "trait_library.json (afflictions/virtues) is a separate system from quirk_library.json despite the UI calling quirks 'traits'; you cannot author an affliction as a quirk."
+      }
+    ]
+  },
+  "monster": {
+    "forced": [
+      {
+        "element": "stats: and resistances:",
+        "why": "A monster defines its raw base stats and 8 combat resistances directly in stats:/resistances: — this stat authoring is required for the enemy to function.",
+        "link": { "view": "designElements", "id": "monster" }
+      },
+      {
+        "element": "Effects for dynamic power",
+        "why": "combat_skill:/skill: fire effects by .effect name (same grammar as hero skills); anything the monster does beyond raw stats reaches buffs through those effects' .buff_ids.",
+        "link": { "view": "effects" }
+      },
+      {
+        "element": "Mash placement to appear",
+        "why": "A monster only shows up if it is placed in a region's encounter mash tables; placement is required but is not itself a buff or effect carrier."
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Rich reaction-hook layer",
+        "detail": "Conditional behavior fires through reaction hooks: was_killed/was_hit effects (skill_reaction:), hp_reaction: phase triggers, death_reaction:, crit: .effects, spawn: .effects — the monster analog of trinket triggers.",
+        "link": { "view": "effects" }
+      },
+      {
+        "choice": "Direct buff lists",
+        "detail": "A monster carries some buffs directly: companion: .buffs, battle_modifier hero/other-enemy buff instances, and mode: buffs are applied without an effect.",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "choice": "Custom enemy_type tag",
+        "detail": "A free-form enemy_type: tag lets a hero '+% vs <type>' buff read it via rule_type monsterType — the monster<->hero pairing hook.",
+        "link": { "view": "buffRules" }
+      },
+      {
+        "choice": "Lifecycle mechanics",
+        "detail": "death_class:/shape_shifter: (transform), shared_health:/life_link: (multi-part), life_time: (expiring summons), captor_full/empty (capture) build bosses and summons.",
+        "link": { "view": "designElements", "id": "companion-summon" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "AI brain is a reference only",
+        "why": "monster_brain: names an engine-provided brain; the desire/target logic is code-side and cannot be authored as a buff or effect — only tuned via battle_modifier/personality."
+      },
+      {
+        "limit": "Static stat isn't a reaction",
+        "why": "Anything conditional (on death, on hit, at 50% HP, on transform) must be a reaction hook, not a static buff; a plain buff has no event trigger."
+      },
+      {
+        "limit": "battle_modifier flags are booleans",
+        "why": "The 20+ battle_modifier flags are boolean switches (targetability/surprise/stall/guard), not rule-gated buffs — no rule_type applies to them."
+      }
+    ]
+  },
+  "curio": {
+    "forced": [
+      {
+        "element": "A CSV result table",
+        "why": "Curios are CSV-driven at runtime (no JSON); the curio's power is a two-tier weighted RESULT table in curio_type_library.csv plus a curio_props.csv art row.",
+        "link": { "view": "designElements", "id": "curio" }
+      },
+      {
+        "element": "An indirect buff route",
+        "why": "A curio carries no buff list; buffs arrive only via an Effect result naming an effect (its .buff_ids apply) or via a granted Quirk/Disease whose buffs apply (source bsrc_curio).",
+        "link": { "view": "effects" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Result type mix",
+        "detail": "One curio block can weight Effect (fire effect/buff/inline DoT), Quirk (grant id or pos/neg bucket), Disease, Purge (clear a negative), Loot, Scouting or Summon.",
+        "link": { "view": "designElements", "id": "quirk" }
+      },
+      {
+        "choice": "Item-interaction overrides",
+        "detail": "A provision item (holy_water, skeleton_key, shovel, torch, medicinal_herbs...) used on the curio bypasses the whole default table and applies its own keyed row.",
+        "link": { "view": "effects" }
+      },
+      {
+        "choice": "Region-flavored results",
+        "detail": "REGION FOUND selects a per-region result table, letting the same curio grant biome-specific quirks/loot; it selects results, not placement.",
+        "link": { "view": "designElements", "id": "curio" }
+      },
+      {
+        "choice": "Mania auto-interaction",
+        "detail": "TAGS on the curio pair with a quirk's curio_tag so tagged heroes compulsively interact — the authoring side of manias.",
+        "link": { "view": "designElements", "id": "quirk" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "No buff-id list of its own",
+        "why": "A curio cannot hold a buffs:[] field; every buff it grants is mediated by an Effect result or a granted quirk/disease."
+      },
+      {
+        "limit": "No rule_type on the curio",
+        "why": "The curio record has no rule gate; result selection is purely by weight, and REGION FOUND is a table selector, not a condition."
+      },
+      {
+        "limit": "Purge removes negatives only",
+        "why": "Shipped Purge results clear the negative-quirk bucket; there is no vanilla curio result that strips an enemy's or hero's positive buffs."
+      }
+    ]
+  },
+  "town-district-building": {
+    "forced": [
+      {
+        "element": "Typed buff-data / activity ops",
+        "why": "A district grants power via typed DistrictXBuffData objects (e.g. DistrictHeroBuffData.buff_list is a direct buff-id list); an activity building grants via ops (apply_buff, add_quirk, add_trinket...).",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "element": "Byte-exact district type strings",
+        "why": "A district buff_list[].type is STRICT-parsed — an unknown or misspelled DistrictXBuffData type is a guaranteed startup CTD (factory null-vtable call), so the 8 names must be copied byte-exact."
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Class-scoped hero buffs",
+        "detail": "DistrictHeroBuffData with hero_type_tags grants buff ids only to matching-tagged heroes — the district-level gate for a class-specific persistent buff.",
+        "link": { "view": "buffRules" }
+      },
+      {
+        "choice": "Activity side-effects",
+        "detail": "An activity's side_effects roll weighted results per completing hero: add_quirk, apply_buff, go_missing, add/remove_currency, activity_lock, add/remove_trinket.",
+        "link": { "view": "designElements", "id": "quirk" }
+      },
+      {
+        "choice": "Curio-interaction district",
+        "detail": "DistrictCurioInteractionBuffData grants bonus stress-heal when a tagged hero uses a matching curio.",
+        "link": { "view": "designElements", "id": "curio" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "No combat effect: records",
+        "why": "Town carriers do not fire .effect names; their payloads are typed buff-data objects or activity ops with no effect-name path."
+      },
+      {
+        "limit": "add_trinket can't name an id",
+        "why": "The add_trinket activity op grants a random trinket of a rarity; there is no field to grant a specific trinket id."
+      },
+      {
+        "limit": "64-class factory cap",
+        "why": "The district-buff factory caps at 64 registered classes; you cannot register more DistrictBuff types than the engine's table allows."
+      }
+    ]
+  },
+  "actor-dot": {
+    "forced": [
+      {
+        "element": "An effect with .actor_dot",
+        "why": "actor_dot is an effect construct, not a top-level content type — it is authored as an effect: record with .actor_dot and update/duration timing on another carrier (skill, trinket trigger, monster reaction).",
+        "link": { "view": "effects" }
+      },
+      {
+        "element": "A tick timing mode",
+        "why": "update_duration_type controls WHEN a tick fires (per turn, after_turn_attack, after_turn_attack_kill), defining the timer/ramp/punish schedule.",
+        "link": { "view": "effects" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Payload on tick / completion",
+        "detail": "Each tick or the completion/kill transition can fire further effects (stun, ramp buff, loot-mule summon) which reach rule-gated buffs via .buff_ids.",
+        "link": { "view": "bridge" }
+      },
+      {
+        "choice": "Pick the DoT channel",
+        "detail": ".dotBleed/.dotBlight/.dotBurn choose which resistance applies; .health_damage deals raw damage with no resist.",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "choice": "Timer / ramp / punish patterns",
+        "detail": "Common uses: delayed-stun sigil, forever-ramp corruption, self-repairing immobilize, guaranteed on-kill loot mule, target-triggered punish burn."
+      }
+    ],
+    "limits": [
+      {
+        "limit": "Not a standalone content type",
+        "why": "actor_dot cannot exist on its own; it is a wiring pattern that must live inside an effect authored on a real carrier."
+      },
+      {
+        "limit": "No buff-id list on a non-effect record",
+        "why": "It reaches buffs only the normal effect way (its own .buff_ids); it is a carrier because it fires payloads on a schedule, not because it holds buffs."
+      }
+    ]
+  },
+  "mode-stance": {
+    "forced": [
+      {
+        "element": "A set_mode effect to flip",
+        "why": "The stance is flipped by a .set_mode effect fired from a skill (optionally gated on hit/miss/chance); the register changes only through this effect.",
+        "link": { "view": "effects" }
+      },
+      {
+        "element": "in_mode buffs for payoff",
+        "why": "Per-stance stats come from buffs gated on rule_type in_mode (with is_false_rule to invert) — the stance state itself carries no stat.",
+        "link": { "view": "buffRules" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "Skill gating via .valid_modes",
+        "detail": "Skills carry .valid_modes so a builder is available only in certain stances; slicing builders this way encodes mode wheels, heat gauges or combo ladders.",
+        "link": { "view": "designElements", "id": "hero-combat-skill" }
+      },
+      {
+        "choice": "Probabilistic shifts",
+        "detail": "A sub-100% .chance on set_mode, or .on_hit/.on_miss variants, makes an accuracy-gated or random stance shift.",
+        "link": { "view": "effects" }
+      },
+      {
+        "choice": "mode: block settings",
+        "detail": "A mode: block can carry battle_start_effect_ids and (for afflictions) affliction_combat_skill_id; monsters run the same FSM.",
+        "link": { "view": "designElements", "id": "monster" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "set_mode is absolute",
+        "why": "set_mode sets an exact mode, not a relative step; N rungs of a ladder require N duplicated skill lines — there is no increment operator."
+      },
+      {
+        "limit": "Not a standalone content file",
+        "why": "A mode/stance is a creative primitive built from vanilla parts (set_mode + .valid_modes + in_mode); there is no dedicated stance content type."
+      }
+    ]
+  },
+  "companion-summon": {
+    "forced": [
+      {
+        "element": "A real monster .info to reference",
+        "why": "A summoned actor must exist as a real monster .info to be referenced; the summon effect names its base class id.",
+        "link": { "view": "designElements", "id": "monster" }
+      },
+      {
+        "element": "A summon effect field",
+        "why": "Heroes and monsters reach summons only through effect fields (spawn_target_actor_base_class_id / summon_monsters) on a skill or reaction.",
+        "link": { "view": "effects" }
+      }
+    ],
+    "choices": [
+      {
+        "choice": "companion: direct buffs",
+        "detail": "companion: .buffs is a direct per-turn buff-id list applied to the paired partner, plus .heal_per_turn_percent — a rare direct-buff monster field.",
+        "link": { "view": "buffStats" }
+      },
+      {
+        "choice": "spawn: .effects executor",
+        "detail": "A summoned actor's spawn: .effects fire on spawn, running effect logic the caster can't (the invisible-executor / self-killing loot-mule patterns).",
+        "link": { "view": "effects" }
+      },
+      {
+        "choice": "life_time: expiry",
+        "detail": "life_time: .alive_round_limit auto-kills a temporary summon after N rounds.",
+        "link": { "view": "designElements", "id": "monster" }
+      }
+    ],
+    "limits": [
+      {
+        "limit": "No summon without a monster record",
+        "why": "You cannot summon an ad-hoc actor; the referenced class must be a defined monster .info or the reference fails."
+      },
+      {
+        "limit": "controller stress is a plain field",
+        "why": "controller: .stress_per_controlled_turn is a numeric field, not a rule-gated buff — it cannot carry conditions."
+      }
+    ]
+  }
+}

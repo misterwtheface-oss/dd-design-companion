@@ -217,7 +217,12 @@ function compileCarriers() {
   const raw = readJSON("carriers.json");
   if (!raw) return { items: [] };
   if (!Array.isArray(raw.carriers)) { errors.push(`carriers.json: expected an array at "carriers"`); return { items: [] }; }
+  // wizard content (optional): { carrierId: { forced[], choices[], limits[] } }
+  const wiz = readJSON("wizard.enrich.json", true) || {};
+  const wizKeys = new Set(Object.keys(wiz));
+  const VIEW_KEYS = new Set(["designElements", "effects", "buffStats", "buffRules", "bridge"]);
   const seen = new Set();
+  let wizCount = 0;
   for (const c of raw.carriers) {
     if (!c.id) { errors.push(`carriers.json: a carrier has no id (name="${c.name || "?"}")`); continue; }
     if (seen.has(c.id)) errors.push(`carriers.json: duplicate carrier id "${c.id}"`);
@@ -227,8 +232,20 @@ function compileCarriers() {
     else if (!iconName) warnings.push(`carriers.json: carrier "${c.id}" has no icon mapping`);
     c.icon = haveIcon(iconName) ? iconPath(iconName) : null;
     if (!c.name) warnings.push(`carriers.json: carrier "${c.id}" has no name`);
+    // merge wizard content + validate any appendix links resolve to a real view
+    const w = wiz[c.id];
+    if (w) {
+      c.forced = w.forced || []; c.choices = w.choices || []; c.limits = w.limits || [];
+      for (const it of [...c.forced, ...c.choices]) {
+        if (it.link && it.link.view && !VIEW_KEYS.has(it.link.view)) errors.push(`wizard.enrich.json: "${c.id}" link -> unknown view "${it.link.view}"`);
+      }
+      wizKeys.delete(c.id); wizCount++;
+    } else if (Object.keys(wiz).length) {
+      warnings.push(`wizard.enrich.json: no content for carrier "${c.id}"`);
+    }
   }
-  return { items: raw.carriers, _count: seen.size };
+  for (const k of wizKeys) warnings.push(`wizard.enrich.json: id "${k}" matches no carrier (stale)`);
+  return { items: raw.carriers, _count: seen.size, _wiz: wizCount };
 }
 
 // ── run ──
@@ -243,7 +260,7 @@ for (const key of Object.keys(surfaces)) {
   const s = surfaces[key];
   console.log(`✓ ${s.label.padEnd(11)} ${String(s._counts.items).padStart(3)} items · ${s._counts.groups} groups · ${s._counts.enriched} enriched`);
 }
-console.log(`✓ Carriers    ${String(carriers._count || 0).padStart(3)} design elements`);
+console.log(`✓ Carriers    ${String(carriers._count || 0).padStart(3)} design elements · ${carriers._wiz || 0} with wizard content`);
 console.log(`✓ Bridge      ${String(bridge.sections.length).padStart(3)} sections · ${bridge.triggers.length} triggers`);
 if (errors.length) { console.log(`✗ ${errors.length} error(s):`); errors.forEach(e => console.log(`    ${e}`)); }
 if (warnings.length) { console.log(`⚠ ${warnings.length} warning(s):`); warnings.slice(0, 40).forEach(w => console.log(`    ${w}`)); if (warnings.length > 40) console.log(`    …and ${warnings.length - 40} more`); }
@@ -256,7 +273,7 @@ if (hardErrors) {
 }
 
 for (const s of Object.values(surfaces)) delete s._counts;
-delete carriers._count;
+delete carriers._count; delete carriers._wiz;
 const data = {
   meta: { generated: new Date().toISOString().slice(0, 10), surfaces: Object.fromEntries(Object.values(surfaces).map(s => [s.key, s.items.length])) },
   carriers, surfaces, bridge,

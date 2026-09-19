@@ -237,6 +237,57 @@ button.ghost:hover { border-color: var(--border-hi); background: #ffffff08; }
 
 @media (max-width: 600px) { .carrier-grid { grid-template-columns: 1fr; } }
 
+/* nav label for the Appendix group */
+.nav-label {
+  align-self: center; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--text-dim); padding: 0 0.45rem 0 0.6rem; margin: 0 0.15rem 0 0.4rem;
+  border-left: 1px solid var(--border);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   WIZARD — the guided front door
+   ═══════════════════════════════════════════════════════════════════ */
+.wiz-rail { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.wiz-step {
+  display: flex; align-items: center; gap: 0.45rem; text-align: left;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.4rem 0.6rem; color: var(--text-muted); flex: 1 1 160px; min-width: 0;
+}
+.wiz-step:hover { border-color: var(--border-hi); }
+.wiz-step-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  background: var(--surface3); border: 1px solid var(--border); font-size: 0.8rem; font-weight: 700;
+}
+.wiz-step-q { font-size: 0.74rem; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; }
+.wiz-step.active { border-color: var(--gold); color: var(--text); background: var(--surface); }
+.wiz-step.active .wiz-step-n { background: var(--gold); color: var(--bg); border-color: transparent; }
+.wiz-step.done .wiz-step-n { background: var(--accent); color: var(--text); border-color: transparent; }
+
+.wiz-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; max-width: 80ch; }
+.wiz-q { font-size: 1.15rem; color: var(--gold); margin-bottom: 0.8rem; }
+.wiz-building .carrier-name { font-size: 1.15rem; }
+.wiz-building .lead { margin-top: 0.5rem; }
+
+.wiz-list { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+.wiz-item { border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 6px; padding: 0.55rem 0.7rem; background: var(--surface2); }
+.wiz-item-h { font-weight: 700; color: var(--text); margin-bottom: 0.2rem; }
+.wiz-item-b { font-size: 0.86rem; color: var(--text-muted); }
+.wiz-forced  { border-left-color: var(--accent-hi); }
+.wiz-choices { border-left-color: var(--r-comet); }
+.wiz-limit   { border-left-color: var(--neg); }
+.wiz-limit .wiz-item-h { color: var(--neg); }
+.wiz-link { margin-top: 0.45rem; background: transparent; border: 1px solid var(--border); border-radius: 5px; padding: 0.2rem 0.5rem; font-size: 0.76rem; color: var(--gold); }
+.wiz-link:hover { border-color: var(--border-hi); background: #ffffff08; }
+
+.wiz-nav { display: flex; justify-content: space-between; gap: 0.6rem; margin-top: 1rem; max-width: 80ch; }
+
+@media (max-width: 600px) {
+  .wiz-step-q { display: none; }         /* compact numbered rail on phones */
+  .wiz-step { flex: 0 0 auto; }
+  .nav-label { display: none; }
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    DOMAIN / CATEGORY BANNER (data-coloured; reused from skeleton trait banner)
    ═══════════════════════════════════════════════════════════════════ */
