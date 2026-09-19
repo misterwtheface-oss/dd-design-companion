@@ -1,9 +1,26 @@
 # --- DD Design Companion ---
-# Rule of thumb: if the SPA doesn't load it at runtime, it doesn't belong here.
+# Rule of thumb: if the SPA doesn't load it at runtime (or the build/sync tools
+# don't need it), it doesn't belong in this public repo.
 
+# This SPA ships ZERO npm dependencies — the build (build-data.mjs), sync
+# (sync-icons.mjs) and preview (serve.mjs) are all vanilla Node. node_modules /
+# package*.json only ever appear from ad-hoc dev tooling (e.g. jsdom for a test
+# pass) and must never be committed. If the build ever takes a real dependency,
+# revisit this and commit a curated package.json.
 node_modules/
+package.json
+package-lock.json
+
+# logs / OS / editor cruft
 *.log
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# scratch / test files
+_test*.mjs
+*.tmp
 
 # raw / intermediate data that is NOT the shipped subset
 data/_raw/
@@ -11,9 +28,12 @@ data/_raw/
 # The source workspaces live as SIBLINGS and are NEVER committed here — this repo
 # is public (GitHub Pages) and must contain only our authored design surface:
 #   ../dd-mods       (mod project: raw notes, .py tools)
-#   ../_dd_extract   (datamine wiki, decompiled source)
+#   ../_dd_extract   (datamine wiki, decompiled source + the 730MB asset export
+#                     that sync-icons.mjs pulls the shipped icons FROM)
 # If either is ever nested under this repo, ignore it:
 # _*_extract/
 # dd-mods/
 
 # NOTE: data.js IS committed on purpose — GitHub Pages serves it directly.
+# The data/*.json sources (incl. *.enrich.json + icon-sources.json) are committed
+# too: they're the buildable source that regenerates data.js and assets/icons/.
