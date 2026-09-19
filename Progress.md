@@ -35,6 +35,23 @@ Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`
 - [ ] Live "do my design's references resolve?" checker.
 
 ## Log
+### 2026-09-19 — session 1b (Possibility Space polish)
+- **Chips → dropdown:** the category chip strip filled the phone screen; replaced with a compact
+  `<select>` (with the active category's game icon) + search on one toolbar row.
+- **Game icons:** copied real DD status/resist icons (`overlays/tray_*`, `shared/resistance/*`,
+  `overlays/torch.png`) into `assets/icons/` (41 files). `build-data.mjs` resolves a per-entry icon
+  by keyword match on id+name (bleed→tray_bleed, stun→tray_stun, heal→tray_dot_hp_heal, …) with a
+  per-group fallback icon; **guardrail fails the build if any referenced icon is missing**. Icons
+  render on tiles, in the detail header, and beside the category dropdown.
+- **Rich docs:** every catalog entry now carries an authoritative `doc` + `ref`, extracted from
+  `EFFECTS_REFERENCE` / `BUFFS_REFERENCE` / `PARAMETER_GLOSSARY` into `data/*.enrich.json` id-maps
+  and merged by the pipeline (324/324 enriched). Detail overlay shows the rich doc as the lead + a
+  "Grounded in <ref>" citation; the short summary becomes a teaser. Strict build = 0 warnings.
+- ⚠ **Licensing note:** the icons are Red Hook's copyrighted art, now in a PUBLIC repo. This mirrors
+  the tension the mod's own `LICENSING.md` addresses ("public build ships zero art"). Fine for a
+  personal fan wiki; revisit if the tool is ever formally distributed (could gate icons behind a
+  local-only asset dir, or swap to original glyphs).
+
 ### 2026-09-19 — session 1 (scaffold)
 - Read up on `dd-mods` (PROGRESS/INTENT/HERO_COOKBOOK) and `_dd_extract` (CONTEXT_MAP + component
   docs + balance CSVs + `trinket_value.py`). Confirmed the tool's intent differs from a build calc.
