@@ -1,0 +1,315 @@
+/*
+  DD Design Companion — app logic (P0: Possibility Space).
+  Reads window.DDC_DATA (generated into data.js by build-data.mjs).
+
+  Architecture (adapted from the build-calc skeleton):
+    - CATALOG-BROWSER-FIRST: top-nav of views; each catalog view = category chips + search
+      + a tile grid. Clicking a tile opens a DETAIL OVERLAY on #detail-overlay-root.
+    - Overlays statically framed (CSS); every re-render PRESERVES the main scrollTop.
+    - Category/domain/group colours come from DATA (assigned in build-data.mjs) and are injected
+      as --aff-color/--aff-text — never hard-coded per-id in CSS.
+    - Event delegation: one click handler per root, bound once at init.
+*/
+(function () {
+  "use strict";
+
+  const DATA = window.DDC_DATA || { surfaces: {}, bridge: { sections: [], triggers: [] }, meta: {} };
+  const UI_KEY = "ddc.ui";
+
+  // The top-level views. Catalog views read DATA.surfaces[key]; bridge is bespoke; soon = P1 stub.
+  const VIEWS = [
+    { key: "effects",   label: "Effects",       kind: "catalog" },
+    { key: "buffStats", label: "Buff Stats",    kind: "catalog" },
+    { key: "buffRules", label: "Rule Gates",    kind: "catalog" },
+    { key: "bridge",    label: "Bridge",        kind: "bridge"  },
+    { key: "heroes",    label: "Hero Designs",  kind: "soon"    },
+    { key: "balance",   label: "Balance Scales",kind: "soon"    },
+  ];
+
+  const INTRO = {
+    effects:   "Skill <b>effects</b> — every payload a combat skill can carry (damage, control, movement, buffs, stress, stealth…). Filter by intent, search by plain-language keyword, open one for its authoring syntax and examples.",
+    buffStats: "Buff <b>stat_types</b> — the 93 stat modifiers a buff can apply. These are what a skill reaches through the bridge. Watch the <b>unit</b> convention (fractional vs raw vs flag) — it's the #1 authoring trap.",
+    buffRules: "<b>rule_type</b> gates — the 55 “only-while-X” conditionals that make a buff situational (low HP, front rank, vs a monster type, at Death's Door…). This is the creative layer: the same stat gains character from its gate.",
+    bridge:    "The <b>effect → buff bridge</b>: how a skill applies a buff, what named buffs unlock that a skill line or inline effect cannot, and the 22 trinket-trigger firing points.",
+  };
+
+  // ── state ──
+  const state = load();
+  function load() {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch { s = {}; }
+    return {
+      view: VIEWS.some(v => v.key === s.view && v.kind !== "soon") ? s.view : "effects",
+      cat: s.cat || {},        // { viewKey: activeCategoryId | "all" }
+      search: s.search || {},  // { viewKey: query }
+    };
+  }
+  function persist() {
+    localStorage.setItem(UI_KEY, JSON.stringify({ view: state.view, cat: state.cat, search: state.search }));
+  }
+
+  // ── helpers ──
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function textColorFor(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+    if (!m) return "#fff";
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6 ? "#111" : "#fff";
+  }
+  const surface = (key) => DATA.surfaces && DATA.surfaces[key];
+  const groupsOf = (s) => (s && s.groups) || [];
+  const itemsOf = (s) => (s && s.items) || [];
+  const groupMap = (s) => new Map(groupsOf(s).map(g => [g.id, g]));
+
+  // group accessor: each surface names its group field differently (category/domain/group)
+  function itemGroupId(s, it) { return it[s.groupKey]; }
+
+  // ── colour helpers for a group/tag ──
+  function tagBanner(group) {
+    if (!group) return "";
+    return `<span class="tag-banner"><span class="tag-banner-label"
+      style="--aff-color:${esc(group.color)};--aff-text:${esc(group.text)}">${esc(group.name)}</span></span>`;
+  }
+
+  // ═══ MASTHEAD + NAV ═══
+  function navHTML() {
+    const btn = (v) => {
+      if (v.kind === "soon")
+        return `<button disabled title="Coming in P1">${esc(v.label)}<span class="soon">soon</span></button>`;
+      const active = v.key === state.view ? " active" : "";
+      return `<button class="${active.trim()}" data-action="view" data-view="${v.key}">${esc(v.label)}</button>`;
+    };
+    // divider between the Possibility-Space views and the P1 surfaces
+    const poss = VIEWS.filter(v => v.kind !== "soon").map(btn).join("");
+    const soon = VIEWS.filter(v => v.kind === "soon").map(btn).join("");
+    return `<nav class="surface-nav">${poss}<span style="flex:1"></span>${soon}</nav>`;
+  }
+
+  // ═══ MAIN RENDER ═══
+  function renderApp() {
+    const app = document.getElementById("app");
+    const prevMain = app.querySelector(".surface-main");
+    const prevScroll = prevMain ? prevMain.scrollTop : 0;
+
+    const view = VIEWS.find(v => v.key === state.view);
+    let body = "";
+    if (view.kind === "catalog") body = catalogHTML(view.key);
+    else if (view.kind === "bridge") body = bridgeHTML();
+
+    app.innerHTML = `
+      <header class="app-header">
+        <h1>Darkest <span class="tag">Design</span> Companion</h1>
+        <span class="subtitle">overhaul mod · possibility space</span>
+      </header>
+      ${navHTML()}
+      <main class="surface-main">${body}</main>`;
+
+    const newMain = app.querySelector(".surface-main");
+    if (newMain) newMain.scrollTop = prevScroll;
+  }
+
+  // ═══ CATALOG VIEW (effects / buffStats / buffRules) ═══
+  function filteredItems(key) {
+    const s = surface(key);
+    const items = itemsOf(s);
+    const cat = state.cat[key] || "all";
+    const q = (state.search[key] || "").trim().toLowerCase();
+    return items.filter((it) => {
+      if (cat !== "all" && itemGroupId(s, it) !== cat) return false;
+      if (!q) return true;
+      const hay = [it.name, it.id, it.summary, ...(it.keywords || [])].join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  function catalogHTML(key) {
+    const s = surface(key);
+    if (!s) return `<p class="empty-state">No data for “${esc(key)}”. Run <code>node build-data.mjs</code>.</p>`;
+    const gmap = groupMap(s);
+    const cat = state.cat[key] || "all";
+    const q = state.search[key] || "";
+
+    // category chips (with per-group counts), "All" first
+    const total = itemsOf(s).length;
+    const chip = (id, name, count, color) => {
+      const g = gmap.get(id);
+      const style = color ? `style="--aff-color:${esc(color)};--aff-text:${esc(g ? g.text : "#111")}"` : "";
+      return `<span class="cat-chip ${id === cat ? "active" : ""}" ${style} data-action="cat" data-view="${key}" data-cat="${esc(id)}">
+        ${esc(name)} <span class="cat-count">${count}</span></span>`;
+    };
+    const counts = new Map();
+    for (const it of itemsOf(s)) { const gid = itemGroupId(s, it); counts.set(gid, (counts.get(gid) || 0) + 1); }
+    const chips = [chip("all", "All", total, null)]
+      .concat(groupsOf(s).map(g => chip(g.id, g.name, counts.get(g.id) || 0, g.color)))
+      .join("");
+
+    const shown = filteredItems(key);
+    const tiles = shown.length
+      ? shown.map(it => tileHTML(s, it)).join("")
+      : `<p class="empty-state">No matches.</p>`;
+
+    return `
+      <p class="surface-intro">${INTRO[key] || ""}</p>
+      <div class="cat-tabs">${chips}</div>
+      <div class="surface-toolbar">
+        <input class="surface-search" type="search" placeholder="Search ${esc(s.label.toLowerCase())}…"
+               data-view="${key}" value="${esc(q)}" />
+        <span class="result-count">${shown.length} / ${total}</span>
+      </div>
+      <div class="cat-grid">${tiles}</div>`;
+  }
+
+  function tileHTML(s, it) {
+    const g = groupMap(s).get(itemGroupId(s, it));
+    const color = g ? g.color : "var(--border)";
+    const foot = [];
+    if (it.unit) foot.push(`<span class="pill">${esc(it.unit)}</span>`);
+    if (it.usage_count != null) foot.push(`<span class="pill">${it.usage_count}× used</span>`);
+    if (it.standalone === false) foot.push(`<span class="pill">modifier</span>`);
+    if (it.conf) foot.push(`<span class="pill conf-${esc(it.conf)}">${esc(it.conf)}</span>`);
+    return `<div class="cat-tile" style="--aff-color:${esc(color)}" data-action="detail" data-view="${s.key}" data-id="${esc(it.id)}">
+      <div class="tile-name">${esc(it.name)}</div>
+      <div class="tile-id">${esc(it.id)}</div>
+      <div class="tile-summary">${esc(it.summary || "")}</div>
+      <div class="tile-foot">${foot.join("")}</div>
+    </div>`;
+  }
+
+  // ═══ DETAIL OVERLAY ═══
+  function openDetail(key, id) {
+    const s = surface(key);
+    const it = itemsOf(s).find(x => x.id === id);
+    if (!it) return;
+    const g = groupMap(s).get(itemGroupId(s, it));
+
+    const rows = [];
+    if (it.syntax) rows.push(kv("Syntax", `<code>${esc(it.syntax)}</code>`));
+    if (it.unit) rows.push(kv("Unit", esc(it.unit) + (it.unit_note ? ` — <span class="muted">${esc(it.unit_note)}</span>` : "")));
+    if (it.sub_type) rows.push(kv("Sub-type", `<code>${esc(it.sub_type)}</code>`));
+    if (it.rule_data) rows.push(kv("rule_data", esc(it.rule_data)));
+    if (it.needs_string != null) rows.push(kv("Param kind", it.needs_string ? "string token" : "numeric / none"));
+    if (it.invertible != null) rows.push(kv("Invertible", it.invertible ? "yes (is_false_rule)" : "no"));
+    if (it.usage_count != null) rows.push(kv("Vanilla uses", `${it.usage_count}`));
+    if (it.standalone != null) rows.push(kv("Kind", it.standalone ? "standalone payload" : "modifier (bundles)"));
+
+    let html = "";
+    html += `<div class="detail-tags">${g ? tagBanner(g) : ""}${it.conf ? `<span class="pill conf-${esc(it.conf)}">${esc(it.conf)} confidence</span>` : ""}</div>`;
+    html += `<p class="lead">${esc(it.summary || "")}</p>`;
+    if (rows.length) html += `<h3>Details</h3><dl class="kv">${rows.join("")}</dl>`;
+
+    if (Array.isArray(it.params) && it.params.length) {
+      html += `<h3>Parameters</h3><ul class="param-list">${it.params.map(p =>
+        `<li><span class="pk">${esc(p.key)}</span>${esc(p.desc)}</li>`).join("")}</ul>`;
+    }
+    if (Array.isArray(it.targets) && it.targets.length) {
+      html += `<h3>Valid targets</h3><div class="chip-row">${it.targets.map(t => `<span class="mini-chip">${esc(t)}</span>`).join("")}</div>`;
+    }
+    if (Array.isArray(it.examples) && it.examples.length) {
+      html += `<h3>Examples</h3>` + it.examples.map(ex =>
+        `<div class="code-block">${esc(ex.code)}</div>${ex.note ? `<p class="code-note">${esc(ex.note)}</p>` : ""}`).join("");
+    }
+    if (Array.isArray(it.keywords) && it.keywords.length) {
+      html += `<h3>Also known as</h3><div class="kw-row">${it.keywords.map(k => `<span class="kw">${esc(k)}</span>`).join("")}</div>`;
+    }
+
+    renderDetail(`${esc(it.name)} <span class="head-id">${esc(it.id)}</span>`, html);
+  }
+  const kv = (k, v) => `<dt>${esc(k)}</dt><dd>${v}</dd>`;
+
+  function renderDetail(title, bodyHtml) {
+    const root = document.getElementById("detail-overlay-root");
+    root.innerHTML = `
+      <div class="overlay-panel" role="dialog" aria-modal="true">
+        <div class="overlay-header">
+          <h2>${title}</h2>
+          <button class="overlay-close" data-action="close-detail" aria-label="Close">&times;</button>
+        </div>
+        <div class="overlay-body"><div class="detail-main">${bodyHtml}</div></div>
+        <div class="overlay-footer"><button data-action="close-detail">Close</button></div>
+      </div>`;
+    root.classList.remove("hidden");
+    root.setAttribute("aria-hidden", "false");
+  }
+  function closeDetail() {
+    const root = document.getElementById("detail-overlay-root");
+    root.classList.add("hidden");
+    root.setAttribute("aria-hidden", "true");
+    root.innerHTML = "";
+  }
+
+  // ═══ BRIDGE VIEW ═══
+  function bridgeHTML() {
+    const b = DATA.bridge || { sections: [], triggers: [] };
+    const sections = (b.sections || []).map(sec => `
+      <section class="bridge-section">
+        <h2>${esc(sec.title)}</h2>
+        ${sec.summary ? `<p>${esc(sec.summary)}</p>` : ""}
+        ${Array.isArray(sec.points) && sec.points.length ? `<ul>${sec.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+        ${Array.isArray(sec.examples) ? sec.examples.map(ex =>
+          `<div class="code-block">${esc(ex.code)}</div>${ex.note ? `<p class="code-note">${esc(ex.note)}</p>` : ""}`).join("") : ""}
+      </section>`).join("");
+
+    const trig = (b.triggers || []);
+    const trigTable = trig.length ? `
+      <section class="bridge-section">
+        <h2>Trinket-trigger firing model — ${trig.length} triggers</h2>
+        <p>Every <code>*_additional_effects</code> hook a buff/trinket can fire through, with its code-certain event and target binding.</p>
+        <div class="trig-table-wrap"><table class="trig-table">
+          <thead><tr><th class="mono">trigger</th><th>event</th><th>target binding</th><th>notes</th></tr></thead>
+          <tbody>${trig.map(t => `<tr>
+            <td class="mono">${esc(t.id || t.name)}</td>
+            <td>${esc(t.event || "")}</td>
+            <td>${esc(t.target_binding || "")}</td>
+            <td>${esc(t.notes || "")}</td></tr>`).join("")}</tbody>
+        </table></div>
+      </section>` : "";
+
+    return `<p class="surface-intro">${INTRO.bridge}</p>${sections}${trigTable}`;
+  }
+
+  // ═══ EVENTS ═══
+  function onAppClick(e) {
+    const el = e.target.closest("[data-action]");
+    if (!el) return;
+    switch (el.dataset.action) {
+      case "view":
+        state.view = el.dataset.view; persist(); renderApp(); break;
+      case "cat":
+        state.cat[el.dataset.view] = el.dataset.cat; persist(); renderApp(); break;
+      case "detail":
+        openDetail(el.dataset.view, el.dataset.id); break;
+    }
+  }
+  function onAppInput(e) {
+    if (!e.target.classList.contains("surface-search")) return;
+    const view = e.target.dataset.view;
+    state.search[view] = e.target.value;
+    persist();
+    // re-render only the grid + count so the search input keeps focus/caret
+    const shown = filteredItems(view);
+    const s = surface(view);
+    const grid = document.querySelector(".cat-grid");
+    const count = document.querySelector(".result-count");
+    if (grid) grid.innerHTML = shown.length ? shown.map(it => tileHTML(s, it)).join("") : `<p class="empty-state">No matches.</p>`;
+    if (count) count.textContent = `${shown.length} / ${itemsOf(s).length}`;
+  }
+  function onDetailClick(e) {
+    const el = e.target.closest("[data-action]");
+    if (!el) { if (e.target.id === "detail-overlay-root") closeDetail(); return; }
+    if (el.dataset.action === "close-detail") closeDetail();
+  }
+  function onKeydown(e) {
+    if (e.key !== "Escape") return;
+    if (!document.getElementById("detail-overlay-root").classList.contains("hidden")) closeDetail();
+  }
+
+  // ── init ──
+  document.getElementById("app").addEventListener("click", onAppClick);
+  document.getElementById("app").addEventListener("input", onAppInput);
+  document.getElementById("detail-overlay-root").addEventListener("click", onDetailClick);
+  document.addEventListener("keydown", onKeydown);
+  renderApp();
+})();

@@ -1,0 +1,19 @@
+# --- DD Design Companion ---
+# Rule of thumb: if the SPA doesn't load it at runtime, it doesn't belong here.
+
+node_modules/
+*.log
+.DS_Store
+
+# raw / intermediate data that is NOT the shipped subset
+data/_raw/
+
+# The source workspaces live as SIBLINGS and are NEVER committed here — this repo
+# is public (GitHub Pages) and must contain only our authored design surface:
+#   ../dd-mods       (mod project: raw notes, .py tools)
+#   ../_dd_extract   (datamine wiki, decompiled source)
+# If either is ever nested under this repo, ignore it:
+# _*_extract/
+# dd-mods/
+
+# NOTE: data.js IS committed on purpose — GitHub Pages serves it directly.

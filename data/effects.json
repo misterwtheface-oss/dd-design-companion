@@ -1,0 +1,2529 @@
+{
+  "categories": [
+    { "id": "damage-dot", "name": "Damage & Damage-over-Time", "summary": "Direct HP hits, bleed/poison/burn/stress DoTs, and lifesteal — the ways to deal harm." },
+    { "id": "healing", "name": "Healing & Cleanse", "summary": "Restore HP (flat or %), heal-over-time, stress-heal, and cure/cleanse of DoTs and debuffs." },
+    { "id": "buffs-debuffs", "name": "Buffs & Debuffs", "summary": "Modify the 10 combat stats (dodge/prot/speed/damage/crit/acc/HP/riposte) inline, or apply named buffs from buffs.json." },
+    { "id": "control-cc", "name": "Control & Lock-down", "summary": "Stun, daze, mark/tag, guard, stealth, immobilize/root, mind-control, riposte — apply a status or lock an actor down." },
+    { "id": "cleanse-status", "name": "Status Removal", "summary": "Strip stun, mark, stealth, root, guard, control, riposte, debuffs, or virtue from an actor." },
+    { "id": "movement", "name": "Movement & Positioning", "summary": "Push, pull, shuffle a single target or a whole party, and immediate reposition variants." },
+    { "id": "kill", "name": "Kill & Execute", "summary": "Instakill / execute mechanics, optionally restricted to monster types." },
+    { "id": "torch-light", "name": "Torch & Light", "summary": "Raise or lower the dungeon light meter." },
+    { "id": "summon", "name": "Summon & Spawn", "summary": "Conjure adds — the positionally-paired summon family that spawns monster classes." },
+    { "id": "transform-stance", "name": "Transform & Stance", "summary": "Swap an actor's monster class (boss transforms) or shift the actor into a declared mode/stance." },
+    { "id": "steal", "name": "Steal Buffs", "summary": "Transfer matching buffs from an enemy target to the performer." },
+    { "id": "turn-economy", "name": "Turn Economy & Meta", "summary": "Bonus actions, initiative changes, skill-use refreshes, and trigger-limit adjustments." },
+    { "id": "curio-utility", "name": "Curio, Quirk, Item & Utility", "summary": "Inflict quirks/diseases, grant/destroy trinkets, use items, capture, curio flags, and Crimson-Court special verbs." },
+    { "id": "gates", "name": "Conditional Gates & Riders", "summary": "Riders that decide whether a payload lands: vs-type, burning gate, on-corpse/death, role-swap, rank/inventory conditions." },
+    { "id": "frame", "name": "Universal Frame Fields", "summary": "The scaffolding every legal effect carries: name, target, chance, on_hit/on_miss, queue, duration, curio_result_type, apply_once, and value-domain catalogs." },
+    { "id": "skill-line", "name": "Skill-Line Fields (NOT effects)", "summary": "Fields that read like effects in design talk but live on the combat_skill line, not in an effect record: free-cast, ignore-stealth, move-on-use, valid_modes, launch/target geometry." }
+  ],
+  "effects": [
+    {
+      "id": "dotBleed",
+      "name": "Bleed DoT",
+      "category": "damage-dot",
+      "summary": "Applies a bleed damage-over-time on the target, ticking each round for the number of rounds set by .duration. Scaled by target bleed resist/mods.",
+      "syntax": ".dotBleed <int> .duration <rounds>",
+      "params": [
+        { "key": "<int>", "desc": "Per-tick bleed amount (integer)." },
+        { "key": ".duration <rounds>", "desc": "Number of rounds the DoT ticks (required)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["bleed", "hemorrhage", "cut", "laceration", "bleeding", "dot", "damage over time"],
+      "examples": [
+        { "code": "effect: .name \"Bleed 2\" .target target .curio_result_type negative .on_hit true .dotBleed 2 .duration 3", "note": "A 2-per-tick bleed for 3 rounds." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "dotPoison",
+      "name": "Poison / Blight DoT",
+      "category": "damage-dot",
+      "summary": "Applies a blight (poison) damage-over-time, ticking each round; gated by target poison resist.",
+      "syntax": ".dotPoison <int> .duration <rounds>",
+      "params": [
+        { "key": "<int>", "desc": "Per-tick blight amount." },
+        { "key": ".duration <rounds>", "desc": "Rounds the DoT ticks (required)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["poison", "blight", "venom", "toxin", "corrode", "dot", "damage over time"],
+      "examples": [
+        { "code": "effect: .name \"Blight 3\" .target target .curio_result_type negative .on_hit true .dotPoison 3 .duration 3", "note": "A 3-per-tick blight for 3 rounds." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "dotBurn",
+      "name": "Burn DoT",
+      "category": "damage-dot",
+      "summary": "Applies a burn damage-over-time (Color of Madness). Amount is multiplied by 1.5 (ceil) on a crit. Scaled by burn resist/mods.",
+      "syntax": ".dotBurn <int> .duration <rounds>",
+      "params": [
+        { "key": "<int>", "desc": "Per-tick burn amount." },
+        { "key": ".duration <rounds>", "desc": "Rounds the DoT ticks (required)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["burn", "fire", "ignite", "scorch", "cinder", "dot", "damage over time"],
+      "examples": [
+        { "code": "effect: .name \"Burn 2\" .target target .curio_result_type negative .on_hit true .dotBurn 2 .duration 3", "note": "A 2-per-tick burn; x1.5 on crit." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "dotStress",
+      "name": "Stress-over-Time",
+      "category": "damage-dot",
+      "summary": "Ticks stress on the target each round. Unlike instant .stress, this DoT does NOT require .queue.",
+      "syntax": ".dotStress <int> .duration <rounds>",
+      "params": [
+        { "key": "<int>", "desc": "Per-tick stress amount." },
+        { "key": ".duration <rounds>", "desc": "Rounds the DoT ticks (required)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["stress over time", "creeping dread", "stress dot", "horror", "fear", "sanity"],
+      "examples": [
+        { "code": "effect: .name \"Stress DoT 2\" .target target .curio_result_type negative .on_hit true .dotStress 2 .duration 3", "note": "Ticks 2 stress/round for 3 rounds; no queue needed." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "dotShuffle",
+      "name": "Shuffle-over-Time",
+      "category": "movement",
+      "summary": "Periodic forced reposition over time — applies a shuffle each round while the DoT is active.",
+      "syntax": ".dotShuffle <int> .duration <rounds>",
+      "params": [
+        { "key": "<int>", "desc": "Shuffle DoT amount (per-tick)." },
+        { "key": ".duration <rounds>", "desc": "Rounds the DoT ticks (required)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["shuffle dot", "periodic shuffle", "reposition over time", "displace", "scramble"],
+      "examples": [
+        { "code": "effect: .name \"Shuffle DoT 1\" .target target .on_hit true .dotShuffle 1 .duration 2", "note": "Periodically reshuffles the target's position." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "dotHpHeal",
+      "name": "Heal-over-Time (Regen)",
+      "category": "healing",
+      "summary": "A round-scoped positive heal-over-time tick (regen), applying heal-received mods. For a battle-long regen banner, use a buffs.json hp_dot_heal buff via buff_ids instead.",
+      "syntax": ".dotHpHeal <int> .duration <rounds>",
+      "params": [
+        { "key": "<int>", "desc": "Per-tick heal amount." },
+        { "key": ".duration <rounds>", "desc": "Rounds the HoT ticks (required)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["regen", "heal over time", "recovery", "mend over time", "hot", "restore hp"],
+      "examples": [
+        { "code": "effect: .name \"Regen 2\" .target target .curio_result_type positive .on_hit true .dotHpHeal 2 .duration 3", "note": "Heals 2/round for 3 rounds." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "dotSource",
+      "name": "DoT Source Tag",
+      "category": "damage-dot",
+      "summary": "Buff::Source id used when the DoT is applied — identifies who/what applied it. Resolves against the same 34-entry bsrc_* table as buff_source_type.",
+      "syntax": ".dotSource \"<bsrc_id>\"",
+      "params": [
+        { "key": "<bsrc_id>", "desc": "One of the 34 bsrc_* source ids (e.g. bsrc_skill, bsrc_trinket, bsrc_quirk). 0x22 = not-found." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["dot source", "source tag", "attribution", "bsrc"],
+      "examples": [
+        { "code": ".dotSource \"bsrc_skill\"", "note": "Tags the DoT as skill-sourced for stacking/clearing rules." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "dot_irresistible",
+      "name": "Irresistible DoT",
+      "category": "damage-dot",
+      "summary": "When true, the DoT skips the resistance roll — it always lands regardless of the target's resist.",
+      "syntax": ".dot_irresistible true",
+      "params": [
+        { "key": "true/false", "desc": "Bool. If true the DoT ignores resist rolls." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["irresistible", "unresistable", "ignore resist", "guaranteed dot"],
+      "examples": [
+        { "code": ".dotBleed 3 .duration 3 .dot_irresistible true", "note": "A bleed that ignores bleed resist." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "actor_dot",
+      "name": "Named Actor-DoT",
+      "category": "damage-dot",
+      "summary": "Selects a named actor-DoT definition (by string, hashed to an id) applied at runtime. A pre-defined DoT record rather than an inline bleed/poison/burn.",
+      "syntax": ".actor_dot \"<id>\"",
+      "params": [
+        { "key": "<id>", "desc": "String id of the actor-DoT definition to apply." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["actor dot", "named dot", "custom dot", "runtime dot"],
+      "examples": [
+        { "code": ".actor_dot \"some_dot_id\"", "note": "Applies a pre-defined actor DoT." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "stress",
+      "name": "Stress (Instant)",
+      "category": "damage-dot",
+      "summary": "Deals that much stress to the target immediately (the vanilla 'Stress N' effects). MUST be .queue'd — verified 66/66 vanilla stress effects are queued.",
+      "syntax": ".stress <float> .queue true",
+      "params": [
+        { "key": "<float>", "desc": "Amount of stress to deal now." },
+        { "key": ".queue true", "desc": "Required — instant stress must be queued." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["stress", "horror", "fear", "dread", "sanity", "panic", "unnerve"],
+      "examples": [
+        { "code": "effect: .name \"Stress 15\" .target target .curio_result_type negative .on_hit true .stress 15 .queue true", "note": "Deals 15 stress immediately; queued." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "health_damage",
+      "name": "Direct HP Damage",
+      "category": "damage-dot",
+      "summary": "A flat HP hit outside the normal weapon roll (bypass path). Pair with .damage_type and .damage_source_type for attribution.",
+      "syntax": ".health_damage <float>",
+      "params": [
+        { "key": "<float>", "desc": "Flat HP damage amount." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["direct damage", "true damage", "raw hp", "smite hp", "flat damage", "bypass"],
+      "examples": [
+        { "code": ".health_damage 5 .damage_type effect .damage_source_type effect", "note": "5 flat HP outside the weapon roll, attributed as an effect source." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "health_damage_blocks",
+      "name": "HP Damage Blocks",
+      "category": "damage-dot",
+      "summary": "Number of damage blocks to grant/deal. Stored on the struct; consumed downstream (not executed in the core apply fn).",
+      "syntax": ".health_damage_blocks <int>",
+      "params": [
+        { "key": "<int>", "desc": "Number of damage blocks." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["damage blocks", "block", "shield", "absorb"],
+      "examples": [
+        { "code": ".health_damage_blocks 2", "note": "Grants/deals two damage blocks." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "lifedrain",
+      "name": "Lifedrain (Lifesteal)",
+      "category": "damage-dot",
+      "summary": "The performer heals for approximately this much of the damage dealt (life-steal on hit). Hash-dispatched field — parse mechanism code-confirmed, semantics data-derived.",
+      "syntax": ".lifedrain <int>",
+      "params": [
+        { "key": "<int>", "desc": "Lifedrain amount (share of damage the performer recovers)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["life steal", "drain", "leech", "vampiric", "siphon", "lifesteal"],
+      "examples": [
+        { "code": ".lifedrain 3", "note": "Performer heals from the damage dealt." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "antihealaoe",
+      "name": "Anti-Heal AoE",
+      "category": "damage-dot",
+      "summary": "Applies anti-heal (healing-received-down) across AoE targets. Hash-dispatched field; semantics data-derived.",
+      "syntax": ".antihealaoe 1",
+      "params": [
+        { "key": "1", "desc": "Int flag." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["anti heal", "healing down", "grievous", "mortal wound", "aoe debuff"],
+      "examples": [
+        { "code": ".antihealaoe 1", "note": "Reduces healing received across an AoE." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "debuffenemy",
+      "name": "Debuff Enemy",
+      "category": "buffs-debuffs",
+      "summary": "Routes the effect's debuff onto an enemy target. Hash-dispatched field; semantics data-derived.",
+      "syntax": ".debuffenemy 1",
+      "params": [
+        { "key": "1", "desc": "Int flag." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["debuff enemy", "weaken", "enemy debuff"],
+      "examples": [
+        { "code": ".debuffenemy 1", "note": "Routes the debuff onto the enemy." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "heal",
+      "name": "Heal (Flat)",
+      "category": "healing",
+      "summary": "Heals the target by a flat amount. Add .can_crit_heal true to allow heal crits; .source_heal_type tags/scales the heal.",
+      "syntax": ".heal <float>",
+      "params": [
+        { "key": "<float>", "desc": "Flat HP restored." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["heal", "mend", "restore hp", "patch", "cure hp", "recover"],
+      "examples": [
+        { "code": "effect: .name \"Heal 4\" .target target .curio_result_type positive .on_hit true .heal 4 .source_heal_type hero_skill", "note": "Flat 4 HP heal from a hero skill." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "heal_percent",
+      "name": "Heal (Percent of Max HP)",
+      "category": "healing",
+      "summary": "Heals the target for a fraction of (max) HP. Same crit/heal-source path as .heal.",
+      "syntax": ".heal_percent <frac>",
+      "params": [
+        { "key": "<frac>", "desc": "Fraction of max HP to restore (e.g. 0.25)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["heal percent", "percent heal", "% hp", "restore hp", "mend"],
+      "examples": [
+        { "code": ".heal_percent 25% .source_heal_type hero_skill", "note": "Heals 25% of max HP." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "can_crit_heal",
+      "name": "Allow Heal Crit",
+      "category": "healing",
+      "summary": "When true, the heal component of this effect can critically hit (heal for extra).",
+      "syntax": ".can_crit_heal true",
+      "params": [
+        { "key": "true/false", "desc": "Bool. Enables heal crits." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["crit heal", "critical heal", "heal crit"],
+      "examples": [
+        { "code": ".heal 4 .can_crit_heal true", "note": "A heal that can crit." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "source_heal_type",
+      "name": "Heal Source Type",
+      "category": "healing",
+      "summary": "Tags where a heal is attributed/scaled from. Passed into the heal applier for both .heal and .heal_percent. 15 values (Heal::Action::Types).",
+      "syntax": ".source_heal_type \"<type>\"",
+      "params": [
+        { "key": "<type>", "desc": "One of: hero_skill, hero_skill_multi_target, monster_skill, monster_skill_multi_target, camp_skill, camp_skill_multi_target, effect, act_out, curio, eat, companion, debug, dot, flashback, damage_heal." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["heal source", "heal type", "heal attribution", "hero_skill", "multi target heal"],
+      "examples": [
+        { "code": ".heal 3 .source_heal_type hero_skill_multi_target", "note": "Tags a party heal for correct scaling." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "healstress",
+      "name": "Stress Heal",
+      "category": "healing",
+      "summary": "Reduces (heals) the target's stress by that amount.",
+      "syntax": ".healstress <float>",
+      "params": [
+        { "key": "<float>", "desc": "Amount of stress to remove." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["stress heal", "calm", "rally", "soothe", "comfort", "steel nerves", "reduce stress"],
+      "examples": [
+        { "code": "effect: .name \"Stress Heal 5\" .target target .curio_result_type positive .on_hit true .healstress 5", "note": "Removes 5 stress." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "cure",
+      "name": "Cure (Poison + Bleed)",
+      "category": "healing",
+      "summary": "If value >= 1, cures BOTH poison AND bleed DoTs on the target (a combined cure). If absent/<1, falls through to the individual cure fields.",
+      "syntax": ".cure <int>",
+      "params": [
+        { "key": "<int>", "desc": "Cure magnitude (>= 1 triggers the combined poison+bleed cure)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["cure", "cleanse", "purge", "remove dot", "antidote", "bandage"],
+      "examples": [
+        { "code": "effect: .name \"Cure\" .target target .curio_result_type positive .on_hit true .cure 1", "note": "Clears poison and bleed together." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "cure_poison",
+      "name": "Cure Poison",
+      "category": "healing",
+      "summary": "Removes poison/blight DoTs on the target (RemoveDOTpoison).",
+      "syntax": ".cure_poison <int>",
+      "params": [
+        { "key": "<int>", "desc": "Cure amount (>0 triggers the cure)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["cure poison", "cure blight", "antidote", "cleanse poison"],
+      "examples": [
+        { "code": ".cure_poison 1", "note": "Clears blight DoTs." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "cure_bleed",
+      "name": "Cure Bleed",
+      "category": "healing",
+      "summary": "Removes bleed DoTs on the target (RemoveDOTbleeding).",
+      "syntax": ".cure_bleed <int>",
+      "params": [
+        { "key": "<int>", "desc": "Cure amount (>0 triggers the cure)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["cure bleed", "bandage", "cleanse bleed", "stop bleeding"],
+      "examples": [
+        { "code": ".cure_bleed 1", "note": "Clears bleed DoTs." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "cure_burn",
+      "name": "Cure Burn",
+      "category": "healing",
+      "summary": "Removes burn DoTs on the target (RemoveDOTburning).",
+      "syntax": ".cure_burn <int>",
+      "params": [
+        { "key": "<int>", "desc": "Cure amount (>0 triggers the cure)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["cure burn", "extinguish", "cleanse burn", "put out fire"],
+      "examples": [
+        { "code": ".cure_burn 1", "note": "Clears burn DoTs." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "cure_disease",
+      "name": "Cure Disease",
+      "category": "healing",
+      "summary": "Cures a disease on the target. Parser-confirmed valid but unused in base data.",
+      "syntax": ".cure_disease <int>",
+      "params": [
+        { "key": "<int>", "desc": "Cure flag/count." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["cure disease", "cleanse disease", "remedy", "medical"],
+      "examples": [
+        { "code": ".cure_disease 1", "note": "Removes a disease from the target." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "clearDotStress",
+      "name": "Clear DoT-Stress",
+      "category": "healing",
+      "summary": "Clears the target's DoT-stress (RemoveDOTstress) — the 'snap them out of horror' tool.",
+      "syntax": ".clearDotStress <int>",
+      "params": [
+        { "key": "<int>", "desc": "Clear amount (>0 triggers)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["cure horror", "clear stress dot", "snap out", "remove horror", "calm dread"],
+      "examples": [
+        { "code": ".clearDotStress 1", "note": "Removes creeping-dread stress DoTs." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "clear_debuff",
+      "name": "Clear Debuffs",
+      "category": "cleanse-status",
+      "summary": "Strips N debuffs from the target (whichever are clear-debuff-valid).",
+      "syntax": ".clear_debuff <int>",
+      "params": [
+        { "key": "<int>", "desc": "Number/flag of debuffs to clear." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["clear debuff", "cleanse debuff", "remove debuff", "purify", "dispel"],
+      "examples": [
+        { "code": ".clear_debuff 1", "note": "Removes one debuff from the target." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "combat_stat_buff",
+      "name": "Combat Stat Buff / Debuff",
+      "category": "buffs-debuffs",
+      "summary": "The workhorse. A flag that this effect is an inline combat-stat buff; carries 2-4 stat mutators (each with _add flat and _multiply scalar). Positive = buff, negative = debuff. One of the mutually-exclusive buff payloads (buff_ids / buff_type / combat_stat_buff / riposte).",
+      "syntax": ".combat_stat_buff 1 .<stat>_add <n> .<stat>_multiply <frac> .duration <rounds>",
+      "params": [
+        { "key": "1", "desc": "Flag marking this an inline stat buff." },
+        { "key": "mutators", "desc": "One or more of the 10 stats' _add/_multiply tokens (see below)." },
+        { "key": ".duration", "desc": "Round-scoped, or .duration 1 .buff_duration_type combat_end for a battle-long banner." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["buff stat", "debuff stat", "weaken", "vulnerable", "empower", "boost", "dodge", "prot", "speed", "damage", "crit", "acc", "hp"],
+      "examples": [
+        { "code": "effect: .name \"Weaken\" .target target .curio_result_type negative .on_hit true .combat_stat_buff 1 .damage_low_multiply -20% .damage_high_multiply -20% .duration 3", "note": "A damage-swing debuff needs both bounds; one effect bundles the pair." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "damage_low_add",
+      "name": "Min Damage (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: flat additive to the low damage bound while the buff is active. Reached only via .combat_stat_buff.",
+      "syntax": ".damage_low_add <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to min damage." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["min damage", "low damage", "damage add", "flat damage buff"],
+      "examples": [ { "code": ".combat_stat_buff 1 .damage_low_add 2 .damage_high_add 2", "note": "Flat +2 to both bounds." } ],
+      "conf": "high"
+    },
+    {
+      "id": "damage_low_multiply",
+      "name": "Min Damage (%)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: multiplicative modifier to the low damage bound (scalar around 1.0; 0.15 = +15%, -0.20 = -20% weaken). Usually paired with damage_high_multiply.",
+      "syntax": ".damage_low_multiply <frac>",
+      "params": [ { "key": "<frac>", "desc": "Multiplier on min damage (e.g. 15%, -20%)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["min damage", "low damage", "damage percent", "weaken", "empower"],
+      "examples": [ { "code": ".damage_low_multiply 15% .damage_high_multiply 15%", "note": "A +15% damage swing." } ],
+      "conf": "high"
+    },
+    {
+      "id": "damage_high_add",
+      "name": "Max Damage (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: flat additive to the high damage bound while the buff is active.",
+      "syntax": ".damage_high_add <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to max damage." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["max damage", "high damage", "damage add", "flat damage buff"],
+      "examples": [ { "code": ".damage_high_add 3", "note": "Flat +3 max damage." } ],
+      "conf": "high"
+    },
+    {
+      "id": "damage_high_multiply",
+      "name": "Max Damage (%)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: multiplicative modifier to the high damage bound. Standard pair with damage_low_multiply for a full damage swing.",
+      "syntax": ".damage_high_multiply <frac>",
+      "params": [ { "key": "<frac>", "desc": "Multiplier on max damage." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["max damage", "high damage", "damage percent", "weaken", "empower"],
+      "examples": [ { "code": ".damage_low_multiply -20% .damage_high_multiply -20%", "note": "A -20% Weaken." } ],
+      "conf": "high"
+    },
+    {
+      "id": "defense_rating_add",
+      "name": "Dodge (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: flat additive to defense/dodge rating (player term DODGE, cap 100). Negative value lowers dodge.",
+      "syntax": ".defense_rating_add <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to dodge (cap 100)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["dodge", "defense", "evasion", "dodge buff", "dodge debuff"],
+      "examples": [ { "code": ".combat_stat_buff 1 .defense_rating_add 10 .duration 3", "note": "+10 dodge for 3 rounds." } ],
+      "conf": "high"
+    },
+    {
+      "id": "protection_rating_add",
+      "name": "Protection (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: flat additive to protection rating (player term PROT, cap 100). Reached via .combat_stat_buff.",
+      "syntax": ".protection_rating_add <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to prot (cap 100)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["prot", "protection", "armor", "damage resist", "prot buff"],
+      "examples": [ { "code": ".combat_stat_buff 1 .protection_rating_add 20% .duration 3", "note": "+20% prot for 3 rounds." } ],
+      "conf": "low"
+    },
+    {
+      "id": "speed_rating_add",
+      "name": "Speed (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: additive mutator of the speed_rating stat (player term SPD). Enters effects only via .combat_stat_buff.",
+      "syntax": ".speed_rating_add <n>",
+      "params": [ { "key": "<n>", "desc": "Flat add to speed." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["speed", "spd", "initiative", "speed buff", "haste"],
+      "examples": [ { "code": ".combat_stat_buff 1 .speed_rating_add 3 .duration 3", "note": "+3 SPD for 3 rounds." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "attack_rating_add",
+      "name": "Accuracy (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: flat additive to attack rating (player term ACC). A negative value is 'blind'. Reached via .combat_stat_buff.",
+      "syntax": ".attack_rating_add <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to accuracy; negative = blind." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["accuracy", "acc", "attack rating", "blind", "hit chance"],
+      "examples": [ { "code": ".combat_stat_buff 1 .attack_rating_add -20% .duration 3", "note": "A blind (-20 ACC) debuff." } ],
+      "conf": "low"
+    },
+    {
+      "id": "crit_chance_add",
+      "name": "Crit (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: flat additive modifier to crit chance while the buff is active.",
+      "syntax": ".crit_chance_add <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to crit chance." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["crit", "critical", "crit chance", "crit buff"],
+      "examples": [ { "code": ".combat_stat_buff 1 .crit_chance_add 5% .duration 3", "note": "+5% crit for 3 rounds." } ],
+      "conf": "high"
+    },
+    {
+      "id": "critical_rating",
+      "name": "Crit Rating (alias)",
+      "category": "buffs-debuffs",
+      "summary": "Alias of the crit stat's add component (.crit_chance_add) — not a separate stat. Canonical name is crit_chance; verify token spelling against actual .effects.darkest data.",
+      "syntax": ".critical_rating <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to crit (treat as crit_chance_add)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["crit", "critical rating", "crit alias"],
+      "examples": [ { "code": ".critical_rating 5%", "note": "Equivalent to crit_chance_add; prefer crit_chance_add." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "max_hp_add",
+      "name": "Max HP (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token for the max_hp stat (player term HP). Registered but never used inline in vanilla (0 uses) — author HP buffs as a buffs.json entry via buff_ids instead.",
+      "syntax": ".max_hp_add <float>",
+      "params": [ { "key": "<float>", "desc": "Flat add to max HP." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["max hp", "health", "hp buff", "vigor"],
+      "examples": [ { "code": ".buff_ids \"TRINKET_MAXHP_1\"", "note": "Prefer a buffs.json HP buff over an inline max_hp mutator." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "max_hp_multiply",
+      "name": "Max HP (%)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: multiplicative modifier to max HP. Valid only via .combat_stat_buff; like max_hp_add, unused inline in vanilla — prefer a buffs.json buff.",
+      "syntax": ".max_hp_multiply <frac>",
+      "params": [ { "key": "<frac>", "desc": "Multiplier on max HP." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["max hp", "health percent", "hp buff", "vigor"],
+      "examples": [ { "code": ".max_hp_multiply 10%", "note": "Prefer authoring via buff_ids." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "riposte_on_hit_chance_add",
+      "name": "Riposte-on-Hit Chance (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: additive modifier to the chance the actor ripostes when hit. Reached only via .combat_stat_buff.",
+      "syntax": ".riposte_on_hit_chance_add <frac>",
+      "params": [ { "key": "<frac>", "desc": "Additive riposte-on-hit chance." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["riposte chance", "counter chance", "riposte on hit"],
+      "examples": [ { "code": ".combat_stat_buff 1 .riposte_on_hit_chance_add 25%", "note": "Raises riposte-on-hit odds." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "riposte_on_miss_chance_add",
+      "name": "Riposte-on-Miss Chance (flat)",
+      "category": "buffs-debuffs",
+      "summary": "Combat-stat-buff sub-token: additive modifier to the chance the actor ripostes when an attack misses it. Reached only via .combat_stat_buff.",
+      "syntax": ".riposte_on_miss_chance_add <frac>",
+      "params": [ { "key": "<frac>", "desc": "Additive riposte-on-miss chance." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["riposte chance", "counter on miss", "riposte on miss"],
+      "examples": [ { "code": ".combat_stat_buff 1 .riposte_on_miss_chance_add 25%", "note": "Raises riposte-on-miss odds." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "buff_ids",
+      "name": "Named Buffs (buff_ids)",
+      "category": "buffs-debuffs",
+      "summary": "Applies up to 8 named buff ids defined in shared/buffs/<mod>.buffs.json. Use when the buff needs a rule_type gate (only-while-X), a specific duration_type, cross-file reuse, a resistance buff, or the wider stat palette. This is how a skill gains buff-only powers.",
+      "syntax": ".buff_ids \"id_a id_b ...\"",
+      "params": [
+        { "key": "\"id_a id_b ...\"", "desc": "Up to 8 space/quote-delimited buff ids from buffs.json." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["named buff", "apply buff", "conditional buff", "rule-gated buff", "resistance buff"],
+      "examples": [
+        { "code": "effect: .name \"Second Wind\" .target performer .on_hit true .buff_ids \"CRU_SECOND_WIND_REGEN\"", "note": "A battle-long regen banner via a buffs.json buff." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "buff_is_clear_debuff_valid",
+      "name": "Buff Clear-Debuff-Valid",
+      "category": "buffs-debuffs",
+      "summary": "Whether this buff is eligible to be cleared by a clear-debuff effect.",
+      "syntax": ".buff_is_clear_debuff_valid true",
+      "params": [ { "key": "true/false", "desc": "Bool. Marks the buff clearable/unclearable." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["clearable buff", "debuff valid", "dispellable"],
+      "examples": [ { "code": ".buff_is_clear_debuff_valid false", "note": "Makes the buff resist clear-debuff." } ],
+      "conf": "high"
+    },
+    {
+      "id": "buff_type",
+      "name": "Inline Buff Type",
+      "category": "buffs-debuffs",
+      "summary": "Selects the combat-stat buff category for a one-off inline buff authored without a buffs.json entry. Gates reading of .buff_sub_type and .buff_amount. One of the mutually-exclusive buff payloads.",
+      "syntax": ".buff_type <name> .buff_sub_type <name> .buff_amount <float>",
+      "params": [
+        { "key": "<name>", "desc": "Buff stat category (validated vs the stat_type table)." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["inline buff", "single buff", "one-off buff", "buff type"],
+      "examples": [
+        { "code": ".buff_type damage_low .buff_sub_type null .buff_amount 0.15", "note": "An inline single-stat buff; amount must be > 0." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "buff_sub_type",
+      "name": "Inline Buff Sub-Type",
+      "category": "buffs-debuffs",
+      "summary": "Sub-type companion to inline .buff_type / .buff_amount, narrowing the buff's domain.",
+      "syntax": ".buff_sub_type <name>",
+      "params": [ { "key": "<name>", "desc": "Sub-type domain for the inline buff." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["buff sub type", "inline buff detail"],
+      "examples": [ { "code": ".buff_type ... .buff_sub_type ...", "note": "Refines the inline buff category." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "buff_amount",
+      "name": "Inline Buff Amount",
+      "category": "buffs-debuffs",
+      "summary": "Magnitude of the inline .buff_type buff. Only read when .buff_type is set; the parser errors if buff_type is set but amount == 0.",
+      "syntax": ".buff_amount <float>",
+      "params": [ { "key": "<float>", "desc": "Buff magnitude; must be > 0." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["buff amount", "buff magnitude", "inline buff value"],
+      "examples": [ { "code": ".buff_type ... .buff_amount 0.2", "note": "Sets the inline buff strength." } ],
+      "conf": "high"
+    },
+    {
+      "id": "buff_duration_type",
+      "name": "Buff Duration Type",
+      "category": "buffs-debuffs",
+      "summary": "Controls how long the buff lasts (round vs combat_end vs quest_end etc). If absent AND any dot/dmg field is set, defaults to 8. Used with .duration for a battle-long banner.",
+      "syntax": ".buff_duration_type <type>",
+      "params": [
+        { "key": "<type>", "desc": "One of: round, combat_end, quest_end, quest_complete, activity_end, idle_start_town_visit, ... (11 values)." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["buff duration", "combat end", "quest end", "banner", "lifetime"],
+      "examples": [
+        { "code": ".combat_stat_buff 1 .defense_rating_add 10 .duration 1 .buff_duration_type combat_end", "note": "A battle-long dodge banner." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "buff_source_type",
+      "name": "Buff Source Type",
+      "category": "buffs-debuffs",
+      "summary": "Categorizes the buff's source (drives stacking & clearing rules). 34 values (bsrc_*).",
+      "syntax": ".buff_source_type \"<bsrc_id>\"",
+      "params": [
+        { "key": "<bsrc_id>", "desc": "One of 34 bsrc_* ids (e.g. bsrc_skill, bsrc_trinket, bsrc_quirk, bsrc_riposte)." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["buff source", "source type", "stacking rule", "bsrc"],
+      "examples": [ { "code": ".buff_source_type \"bsrc_skill\"", "note": "Tags the buff as skill-sourced." } ],
+      "conf": "high"
+    },
+    {
+      "id": "riposte",
+      "name": "Riposte (grant)",
+      "category": "control-cc",
+      "summary": "Grants the Riposte status: the actor counter-hits attackers. Requires .duration. The .riposte_effect names the sub-effect applied by the counter. One of the mutually-exclusive buff payloads.",
+      "syntax": ".riposte <int> .duration <rounds> .riposte_effect \"<effect id>\"",
+      "params": [
+        { "key": "<int>", "desc": "Riposte flag/amount." },
+        { "key": ".duration <rounds>", "desc": "Required — how long riposte lasts." },
+        { "key": ".riposte_effect", "desc": "Effect id the counter-hit applies." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["riposte", "counter", "parry", "retaliate", "counterattack"],
+      "examples": [
+        { "code": "effect: .name \"Riposte 3\" .target performer .on_hit true .riposte 1 .duration 3 .riposte_effect \"HW Riposte Attack\"", "note": "Grants a 3-round riposte with a custom counter payload." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "riposte_effect",
+      "name": "Riposte Sub-Effect",
+      "category": "control-cc",
+      "summary": "Sub-field of .riposte — the effect id the riposte counter-hit applies when it triggers.",
+      "syntax": ".riposte_effect \"<effect id>\"",
+      "params": [ { "key": "<effect id>", "desc": "Name of the effect the counter applies." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["riposte effect", "counter payload", "riposte sub-effect"],
+      "examples": [ { "code": ".riposte 1 .duration 3 .riposte_effect \"Riposte Bleed\"", "note": "Riposte that applies a bleed on counter." } ],
+      "conf": "high"
+    },
+    {
+      "id": "riposte_validate",
+      "name": "Riposte Validate",
+      "category": "control-cc",
+      "summary": "Gates whether a riposte grant is validated (a validate flag read elsewhere; note the trailing space in the parser token).",
+      "syntax": ".riposte_validate true",
+      "params": [ { "key": "true/false", "desc": "Bool. Validate flag for the riposte grant." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["riposte validate", "riposte gate"],
+      "examples": [ { "code": ".riposte 1 .duration 3 .riposte_validate true", "note": "Validates the riposte grant." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "stun",
+      "name": "Stun",
+      "category": "control-cc",
+      "summary": "Accumulates into the target's stun meter (takes max). MUST be .queue'd. Resisted by target Stun resist. Fires applied/resisted events.",
+      "syntax": ".stun <frac> .queue true",
+      "params": [
+        { "key": "<frac>", "desc": "Stun value added to the meter." },
+        { "key": ".queue true", "desc": "Required — stun must be queued." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["stun", "daze", "stagger", "incapacitate", "lockdown"],
+      "examples": [
+        { "code": "effect: .name \"Stun 1\" .target target .curio_result_type negative .on_hit true .stun 1 .queue true", "note": "A standard queued stun." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "daze",
+      "name": "Daze (apply)",
+      "category": "control-cc",
+      "summary": "Applies the Daze status (Fire's Edge; parallels stun). Parser-valid but UNUSED in vanilla base — usable-but-unproven. Like stun, treat as must-be-queued.",
+      "syntax": ".daze <frac> .queue true",
+      "params": [ { "key": "<frac>", "desc": "Daze value." }, { "key": ".queue true", "desc": "Queue as with stun." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["daze", "stun variant", "stagger"],
+      "examples": [ { "code": ".daze 1 .queue true", "note": "Applies Daze (unproven in vanilla)." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "tag",
+      "name": "Mark / Tag",
+      "category": "control-cc",
+      "summary": "Applies the Marked status. A self-mark (.target performer) draws fire (mark-seeking enemies prefer marked heroes); marking an enemy enables ally vs-marked bonuses. Blocked if target is stealthed.",
+      "syntax": ".tag <int> .duration <rounds>",
+      "params": [
+        { "key": "<int>", "desc": "Mark flag/amount." },
+        { "key": ".duration <rounds>", "desc": "How long the mark lasts." }
+      ],
+      "targets": ["performer", "target"],
+      "standalone": true,
+      "keywords": ["mark", "tag", "paint", "spot", "draw fire", "soft taunt", "aggro", "target"],
+      "examples": [
+        { "code": "effect: .name \"Mark Target\" .target target .curio_result_type negative .on_hit true .tag 1 .duration 3", "note": "Marks an enemy for vs-marked bonuses." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "guard",
+      "name": "Guard",
+      "category": "control-cc",
+      "summary": "The performer guards the targeted ally, redirecting hits to the guardian. Needs performer != target and .duration. To make an ally guard the performer instead, add .swap_source_and_target true.",
+      "syntax": ".guard 1 .duration <rounds>",
+      "params": [
+        { "key": "1", "desc": "Guard flag." },
+        { "key": ".duration <rounds>", "desc": "Required — how long the guard lasts." }
+      ],
+      "targets": ["target"],
+      "standalone": true,
+      "keywords": ["guard", "protect", "cover", "bodyblock", "defend", "shield ally"],
+      "examples": [
+        { "code": "effect: .name \"Guard Ally\" .target target .on_hit true .guard 1 .duration 3", "note": "Performer guards an ally." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "stealth",
+      "name": "Stealth",
+      "category": "control-cc",
+      "summary": "Grants the Stealth status to the target. Removed with .unstealth.",
+      "syntax": ".stealth <int>",
+      "params": [ { "key": "<int>", "desc": "Stealth flag/amount." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["stealth", "hide", "vanish", "cloak", "shadow", "invisible"],
+      "examples": [
+        { "code": "effect: .name \"Stealth\" .target performer .on_hit true .stealth 1", "note": "Grants stealth to the performer." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "immobilize",
+      "name": "Immobilize / Root",
+      "category": "control-cc",
+      "summary": "Locks the target's rank (immobilized flag). Cleared with .unimmobilize.",
+      "syntax": ".immobilize <int>",
+      "params": [ { "key": "<int>", "desc": "Immobilize flag/amount." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["immobilize", "root", "pin", "snare", "hold", "lock position"],
+      "examples": [
+        { "code": "effect: .name \"Root\" .target target .curio_result_type negative .on_hit true .immobilize 1", "note": "Prevents the target from being moved / moving." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "control",
+      "name": "Mind Control",
+      "category": "control-cc",
+      "summary": "Take control of the target for N turns. Must NOT be .queue'd (validator warns). Released with .uncontrol.",
+      "syntax": ".control <int>",
+      "params": [ { "key": "<int>", "desc": "Number of turns to control (must not be queued)." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["mind control", "charm", "dominate", "seduce", "possess", "control"],
+      "examples": [
+        { "code": "effect: .name \"Charm\" .target target .curio_result_type negative .on_hit true .control 1", "note": "Takes control of the target for 1 turn; never queued." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "controlled_burn_amount",
+      "name": "Controlled Burn Amount",
+      "category": "damage-dot",
+      "summary": "Amount for the 'controlled burn' mechanic (paired with controlled_burn_duration).",
+      "syntax": ".controlled_burn_amount <int>",
+      "params": [ { "key": "<int>", "desc": "Controlled-burn amount." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["controlled burn", "burn mechanic"],
+      "examples": [ { "code": ".controlled_burn_amount 2 .controlled_burn_duration 3", "note": "Controlled-burn pair." } ],
+      "conf": "high"
+    },
+    {
+      "id": "controlled_burn_duration",
+      "name": "Controlled Burn Duration",
+      "category": "damage-dot",
+      "summary": "Duration for the controlled-burn mechanic.",
+      "syntax": ".controlled_burn_duration <int>",
+      "params": [ { "key": "<int>", "desc": "Controlled-burn duration in rounds." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["controlled burn", "burn duration"],
+      "examples": [ { "code": ".controlled_burn_amount 2 .controlled_burn_duration 3", "note": "Duration side of the pair." } ],
+      "conf": "high"
+    },
+    {
+      "id": "unstun",
+      "name": "Remove Stun",
+      "category": "cleanse-status",
+      "summary": "Resets the target's stun meter to 0 and clears the stun state.",
+      "syntax": ".unstun <frac>",
+      "params": [ { "key": "<frac>", "desc": "Unstun value (>0 triggers)." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["unstun", "clear stun", "remove stun", "wake"],
+      "examples": [ { "code": ".unstun 1", "note": "Clears the target's stun." } ],
+      "conf": "high"
+    },
+    {
+      "id": "undaze",
+      "name": "Remove Daze",
+      "category": "cleanse-status",
+      "summary": "Clears the Daze status (parallels unstun; Fire's Edge). Parser-valid but unused in base.",
+      "syntax": ".undaze <int>",
+      "params": [ { "key": "<int>", "desc": "Undaze flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["undaze", "clear daze", "remove daze"],
+      "examples": [ { "code": ".undaze 1", "note": "Clears daze (unproven in vanilla)." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "untag",
+      "name": "Remove Mark",
+      "category": "cleanse-status",
+      "summary": "Removes the Marked/tagged status (inverse of .tag).",
+      "syntax": ".untag <int>",
+      "params": [ { "key": "<int>", "desc": "Untag flag/amount." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["untag", "unmark", "clear mark", "remove mark"],
+      "examples": [ { "code": ".untag 1", "note": "Removes a mark from the target." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "unstealth",
+      "name": "Remove Stealth",
+      "category": "cleanse-status",
+      "summary": "Removes the Stealth status (inverse of .stealth).",
+      "syntax": ".unstealth <int>",
+      "params": [ { "key": "<int>", "desc": "Unstealth flag/amount." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["unstealth", "reveal", "expose", "remove stealth", "clear cloak"],
+      "examples": [ { "code": ".unstealth 1", "note": "Reveals a stealthed target." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "unimmobilize",
+      "name": "Remove Immobilize",
+      "category": "cleanse-status",
+      "summary": "Clears the target's immobilized flag (inverse of .immobilize).",
+      "syntax": ".unimmobilize <int>",
+      "params": [ { "key": "<int>", "desc": "Unimmobilize flag/amount." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["unimmobilize", "unroot", "free", "release root", "clear snare"],
+      "examples": [ { "code": ".unimmobilize 1", "note": "Frees a rooted target." } ],
+      "conf": "high"
+    },
+    {
+      "id": "uncontrol",
+      "name": "Release Control",
+      "category": "cleanse-status",
+      "summary": "Releases a .control (mind-control). Parser-confirmed valid.",
+      "syntax": ".uncontrol <int>",
+      "params": [ { "key": "<int>", "desc": "Uncontrol flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["uncontrol", "release control", "free mind", "break charm"],
+      "examples": [ { "code": ".uncontrol 1", "note": "Releases a controlled actor." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "clearguarding",
+      "name": "Clear Guarding",
+      "category": "cleanse-status",
+      "summary": "Clears the 'guarding' status on the guardian side (stops the actor from guarding).",
+      "syntax": ".clearguarding <int>",
+      "params": [ { "key": "<int>", "desc": "Clear-guarding flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["clear guarding", "stop guarding", "remove guard"],
+      "examples": [ { "code": ".clearguarding 1", "note": "Ends the actor's guarding." } ],
+      "conf": "high"
+    },
+    {
+      "id": "clearguarded",
+      "name": "Clear Guarded",
+      "category": "cleanse-status",
+      "summary": "Clears the 'being guarded' status on the target (removes the protection it was receiving).",
+      "syntax": ".clearguarded <int>",
+      "params": [ { "key": "<int>", "desc": "Clear-guarded flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["clear guarded", "remove guard from", "unprotect"],
+      "examples": [ { "code": ".clearguarded 1", "note": "Removes the guard protecting the target." } ],
+      "conf": "high"
+    },
+    {
+      "id": "clear_riposte",
+      "name": "Clear Riposte",
+      "category": "cleanse-status",
+      "summary": "Removes the Riposte status from the target.",
+      "syntax": ".clear_riposte <int>",
+      "params": [ { "key": "<int>", "desc": "Clear-riposte flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["clear riposte", "remove riposte", "strip counter"],
+      "examples": [ { "code": ".clear_riposte 1", "note": "Strips riposte from the target." } ],
+      "conf": "high"
+    },
+    {
+      "id": "clearvirtue",
+      "name": "Clear Virtue",
+      "category": "cleanse-status",
+      "summary": "Strips Virtue from the target. Parser-confirmed valid but unused in base data.",
+      "syntax": ".clearvirtue <int>",
+      "params": [ { "key": "<int>", "desc": "Clear-virtue flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["clear virtue", "strip virtue", "remove virtue"],
+      "examples": [ { "code": ".clearvirtue 1", "note": "Removes Virtue from the target." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "remove_vampire",
+      "name": "Remove Vampire (Crimson Curse)",
+      "category": "cleanse-status",
+      "summary": "Removes the vampire (Crimson Curse) affliction/level. NOT a combat effect proper — a town/estate effect-type that strips the Crimson Curse.",
+      "syntax": ".remove_vampire <int>",
+      "params": [ { "key": "<int>", "desc": "Remove-vampire amount/flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["remove vampire", "cure crimson curse", "remove blood", "cleanse vampire"],
+      "examples": [ { "code": ".remove_vampire 1", "note": "Strips the Crimson Curse." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "push",
+      "name": "Push (Knockback)",
+      "category": "movement",
+      "summary": "Moves the target forward (toward rank 1). Shares one net-move slot with pull. Move effects must NOT be queued and must set .can_apply_on_death true.",
+      "syntax": ".push <int> .can_apply_on_death true",
+      "params": [
+        { "key": "<int>", "desc": "Ranks to push forward." },
+        { "key": ".can_apply_on_death true", "desc": "Required on move effects." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["push", "knockback", "shove", "repel", "move forward", "displace"],
+      "examples": [
+        { "code": "effect: .name \"Push 1\" .target target .on_hit true .push 1 .can_apply_on_death true", "note": "Shoves the target one rank forward." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "pull",
+      "name": "Pull (Drag)",
+      "category": "movement",
+      "summary": "Moves the target backward. Stored as a negative net-move; shares the push/pull slot. Move effects must NOT be queued and must set .can_apply_on_death true.",
+      "syntax": ".pull <int> .can_apply_on_death true",
+      "params": [
+        { "key": "<int>", "desc": "Ranks to pull backward." },
+        { "key": ".can_apply_on_death true", "desc": "Required on move effects." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["pull", "drag", "yank", "hook", "reel", "move backward", "reposition"],
+      "examples": [
+        { "code": "effect: .name \"Pull 2\" .target target .on_hit true .pull 2 .can_apply_on_death true", "note": "Drags the target two ranks back." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "shuffletarget",
+      "name": "Shuffle Target",
+      "category": "movement",
+      "summary": "Repositions one target actor to a weighted-random rank. Takes priority over shuffleparty. Move effect — must not be queued, set can_apply_on_death.",
+      "syntax": ".shuffletarget",
+      "params": [ { "key": "(flag)", "desc": "Presence-only token; no argument." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["shuffle target", "reposition enemy", "displace", "scramble one"],
+      "examples": [
+        { "code": "effect: .name \"Shuffle\" .target target .on_hit true .shuffletarget .can_apply_on_death true", "note": "Moves the single target to a random rank." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "shuffleparty",
+      "name": "Shuffle Party",
+      "category": "movement",
+      "summary": "Scrambles the target's whole party formation. shuffletarget overrides this if both present. Move effect.",
+      "syntax": ".shuffleparty",
+      "params": [ { "key": "(flag)", "desc": "Presence-only token; no argument." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["shuffle party", "scramble", "disarray", "reposition all", "chaos"],
+      "examples": [
+        { "code": "effect: .name \"Party Shuffle\" .target target_group .on_hit true .shuffleparty .can_apply_on_death true", "note": "Reshuffles the enemy formation." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "instant_shuffle",
+      "name": "Instant Shuffle",
+      "category": "movement",
+      "summary": "Forces the shuffle-target path and marks it instant — an immediate (non-queued) reposition variant instead of a queued knockback.",
+      "syntax": ".instant_shuffle",
+      "params": [ { "key": "(flag)", "desc": "Presence-only token; forces +0x35=1 and instant path." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["instant shuffle", "immediate reposition", "quick shuffle"],
+      "examples": [
+        { "code": ".shuffletarget .instant_shuffle .can_apply_on_death true", "note": "Immediate single-target reposition." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "kill",
+      "name": "Kill / Execute",
+      "category": "kill",
+      "summary": "Rolls vs .chance to force-kill the target (sets HP to -1, fires MonsterDeathEvent). Restrict with .kill_enemy_types and gate with .requires_kill_target.",
+      "syntax": ".kill <int>",
+      "params": [ { "key": "<int>", "desc": "Kill flag; the roll uses .chance." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["execute", "instakill", "finish", "behead", "slay", "cull", "kill"],
+      "examples": [
+        { "code": "effect: .name \"Execute Husk\" .target target .chance 100% .on_hit true .kill 1 .kill_enemy_types \"husk\" .requires_kill_target true", "note": "Force-kills a husk-type enemy." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "kill_enemy_types",
+      "name": "Kill Enemy Types",
+      "category": "kill",
+      "summary": "Restricts a .kill to a set of monster-type ids (up to 4).",
+      "syntax": ".kill_enemy_types \"a b c\"",
+      "params": [ { "key": "\"a b c\"", "desc": "Up to 4 monster-type ids the kill applies to." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["kill types", "execute types", "slayer", "monster type filter"],
+      "examples": [ { "code": ".kill 1 .kill_enemy_types \"husk corpse\"", "note": "Only executes husks and corpses." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "requires_kill_target",
+      "name": "Requires Kill Target",
+      "category": "kill",
+      "summary": "Condition: the effect only applies if the target is a valid kill target.",
+      "syntax": ".requires_kill_target true",
+      "params": [ { "key": "true/false", "desc": "Bool gate." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["requires kill", "kill gate", "valid target"],
+      "examples": [ { "code": ".kill 1 .requires_kill_target true", "note": "Gates the kill to valid targets." } ],
+      "conf": "high"
+    },
+    {
+      "id": "torch_increase",
+      "name": "Torch Increase",
+      "category": "torch-light",
+      "summary": "Raises the light meter. MUST be .queue'd.",
+      "syntax": ".torch_increase <frac> .queue true",
+      "params": [
+        { "key": "<frac>", "desc": "Light increase amount." },
+        { "key": ".queue true", "desc": "Required — torch effects must be queued." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["torch", "light up", "increase light", "brighten"],
+      "examples": [
+        { "code": "effect: .name \"Torch +25\" .target performer_group .on_hit true .torch_increase 25% .queue true", "note": "Raises the torch." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "torch_decrease",
+      "name": "Torch Decrease",
+      "category": "torch-light",
+      "summary": "Lowers the light meter. MUST be .queue'd.",
+      "syntax": ".torch_decrease <frac> .queue true",
+      "params": [
+        { "key": "<frac>", "desc": "Light decrease amount." },
+        { "key": ".queue true", "desc": "Required — torch effects must be queued." }
+      ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["torch", "snuff", "darken", "dim", "decrease light"],
+      "examples": [
+        { "code": "effect: .name \"Torch -25\" .target performer_group .on_hit true .torch_decrease 25% .queue true", "note": "Snuffs the torch." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_monsters",
+      "name": "Summon Monsters",
+      "category": "summon",
+      "summary": "The core of the summon family: names up to 4 monster-class ids to spawn, each combined with its chance/rank/limit/roll into a weighted summon table. Must target performer.",
+      "syntax": ".summon_monsters \"a b\"",
+      "params": [ { "key": "\"a b\"", "desc": "Up to 4 monster-class ids (positionally paired with the rest of the summon family)." } ],
+      "targets": ["performer"],
+      "standalone": true,
+      "keywords": ["summon", "spawn", "call", "conjure", "adds", "reinforce", "monsters"],
+      "examples": [
+        { "code": "effect: .name \"Summon Adds\" .target performer .on_hit true .summon_monsters \"skeleton_a skeleton_b\" .summon_chances \"1 1\" .summon_count 1 .summon_ranks \"12 12\"", "note": "Spawns one of two skeleton classes." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_chances",
+      "name": "Summon Chances",
+      "category": "summon",
+      "summary": "Up to 4 floats, positionally paired with summon_monsters — the weighted pick chance of each summon table row.",
+      "syntax": ".summon_chances \"1 1\"",
+      "params": [ { "key": "floats", "desc": "Up to 4 chance weights, one per monster." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon chances", "summon weights", "spawn odds"],
+      "examples": [ { "code": ".summon_chances \"3 1\"", "note": "First monster 3x as likely as the second." } ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_count",
+      "name": "Summon Count",
+      "category": "summon",
+      "summary": "Number of monsters to spawn (drives how many weighted picks occur). A summon with count 0 warns.",
+      "syntax": ".summon_count <int>",
+      "params": [ { "key": "<int>", "desc": "How many monsters to spawn." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon count", "spawn count", "number of adds"],
+      "examples": [ { "code": ".summon_count 2", "note": "Spawns two monsters." } ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_ranks",
+      "name": "Summon Ranks",
+      "category": "summon",
+      "summary": "Up to 4 rank-strings (e.g. '1', '2', '12'), positionally paired — which rank(s) each summon may occupy.",
+      "syntax": ".summon_ranks \"12 12\"",
+      "params": [ { "key": "rank-strings", "desc": "Rank(s) each monster can occupy (digits 1-4)." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon ranks", "spawn position", "spawn rank"],
+      "examples": [ { "code": ".summon_ranks \"34 34\"", "note": "Both summons appear in the back ranks." } ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_limits",
+      "name": "Summon Limits",
+      "category": "summon",
+      "summary": "Up to 4 ints — caps how many of each monster class may exist on the field; entries at/over their limit are skipped in the pick.",
+      "syntax": ".summon_limits \"2 2\"",
+      "params": [ { "key": "ints", "desc": "Max field count per summon class." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon limit", "spawn cap", "max adds"],
+      "examples": [ { "code": ".summon_limits \"2 0\"", "note": "Caps the first class at 2; second is uncapped (0)." } ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_does_roll_initiatives",
+      "name": "Summon Rolls Initiative",
+      "category": "summon",
+      "summary": "Up to 4 bools — whether each summoned monster rolls into the current initiative order.",
+      "syntax": ".summon_does_roll_initiatives \"true false\"",
+      "params": [ { "key": "bools", "desc": "Per-summon: rolls into initiative this round or not." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon initiative", "spawn acts this turn", "roll initiative"],
+      "examples": [ { "code": ".summon_does_roll_initiatives \"true\"", "note": "The summon acts this round." } ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_erase_data_on_roll",
+      "name": "Summon Erase-on-Roll",
+      "category": "summon",
+      "summary": "When set, the chosen summon entry is spliced out of the pool after use so it can't be rolled again.",
+      "syntax": ".summon_erase_data_on_roll true",
+      "params": [ { "key": "true/false", "desc": "Bool. Remove the entry once picked." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon erase", "no repeat spawn", "unique summon"],
+      "examples": [ { "code": ".summon_erase_data_on_roll true", "note": "Each entry can only be summoned once." } ],
+      "conf": "high"
+    },
+    {
+      "id": "summon_can_spawn_loot",
+      "name": "Summon Can Spawn Loot",
+      "category": "summon",
+      "summary": "Flag on summoned monsters controlling whether they can drop loot on death.",
+      "syntax": ".summon_can_spawn_loot true",
+      "params": [ { "key": "true/false", "desc": "Bool. Summons drop loot or not." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon loot", "spawn loot", "adds drop loot"],
+      "examples": [ { "code": ".summon_can_spawn_loot false", "note": "Summoned adds drop no loot." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "summon_rank_is_previous_monster_class",
+      "name": "Summon Rank = Previous Class",
+      "category": "summon",
+      "summary": "When set, the summoned monster inherits the rank/position of the monster class it replaced, rather than an explicit rank.",
+      "syntax": ".summon_rank_is_previous_monster_class true",
+      "params": [ { "key": "true/false", "desc": "Bool. Inherit the previous class's rank." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["summon inherit rank", "replace in place", "same position spawn"],
+      "examples": [ { "code": ".summon_rank_is_previous_monster_class true", "note": "Spawns in the replaced monster's slot." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "spawn_target_actor_base_class_id",
+      "name": "Spawn Target Actor Base Class",
+      "category": "summon",
+      "summary": "Identifies the base monster class to spawn as the effect's target actor (stored as a hash). The spawn consumer lives outside the core fns.",
+      "syntax": ".spawn_target_actor_base_class_id \"<class id>\"",
+      "params": [ { "key": "<class id>", "desc": "Base monster class id to spawn." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["spawn actor", "base class spawn", "target actor spawn"],
+      "examples": [ { "code": ".spawn_target_actor_base_class_id \"some_monster\"", "note": "Spawns a specific base class as the target." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "spawn_sycophant",
+      "name": "Spawn Sycophant",
+      "category": "summon",
+      "summary": "Summons Sycophant add(s) (Crimson Court). Hash-dispatched field; semantics data-derived.",
+      "syntax": ".spawn_sycophant <int>",
+      "params": [ { "key": "<int>", "desc": "Count of sycophants to spawn." } ],
+      "targets": ["performer"],
+      "standalone": true,
+      "keywords": ["spawn sycophant", "crimson court add", "summon sycophant"],
+      "examples": [ { "code": ".spawn_sycophant 1", "note": "Summons a Sycophant (Crimson Court)." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "set_mode",
+      "name": "Set Mode / Stance",
+      "category": "transform-stance",
+      "summary": "Switches the actor into a declared mode. At runtime scans the actor's mode list for a match and switches. Pair with the skill's .valid_modes to gate which skills work per stance (the Thorn/Cook stance pattern).",
+      "syntax": ".set_mode \"<mode name>\"",
+      "params": [ { "key": "<mode name>", "desc": "Name of a declared mode on the actor (<=64 bytes)." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["stance", "mode", "form", "posture", "gearshift", "switch stance"],
+      "examples": [
+        { "code": "effect: .name \"To Aggressive\" .target performer .on_hit true .set_mode \"aggressive\"", "note": "Switches the actor into the aggressive stance." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_id",
+      "name": "Set Monster Class (single)",
+      "category": "transform-stance",
+      "summary": "Swaps the target's monster class to a single class id (chance 1.0). Used only if .set_monster_class_ids is absent. A boss transform mechanic.",
+      "syntax": ".set_monster_class_id \"<class id>\"",
+      "params": [ { "key": "<class id>", "desc": "The monster class id to transform into." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["transform", "become", "class swap", "morph", "boss form"],
+      "examples": [
+        { "code": ".set_monster_class_id \"prophet_phase2\"", "note": "Transforms into a second-phase class." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_ids",
+      "name": "Set Monster Class (weighted list)",
+      "category": "transform-stance",
+      "summary": "Up to 8 class-id strings, each weighted by .set_monster_class_chances; one is rolled. Takes precedence over the singular set_monster_class_id.",
+      "syntax": ".set_monster_class_ids \"a b\" .set_monster_class_chances \"1 1\"",
+      "params": [ { "key": "\"a b\"", "desc": "Up to 8 class ids, paired positionally with chances." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["transform", "class swap list", "random form", "morph"],
+      "examples": [ { "code": ".set_monster_class_ids \"form_a form_b\" .set_monster_class_chances \"1 1\"", "note": "Randomly transforms into one of two forms." } ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_chances",
+      "name": "Set Monster Class Chances",
+      "category": "transform-stance",
+      "summary": "Up to 8 float weights, positionally paired with set_monster_class_ids — cumulative-chance roll selects the class.",
+      "syntax": ".set_monster_class_chances \"1 1\"",
+      "params": [ { "key": "floats", "desc": "Weight per class id." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["transform chances", "class swap weights", "form odds"],
+      "examples": [ { "code": ".set_monster_class_chances \"3 1\"", "note": "First form 3x as likely." } ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_reset_hp",
+      "name": "Class Swap: Reset HP",
+      "category": "transform-stance",
+      "summary": "When set, resets HP on the class swap. Combines with carry_over_hp_min_percent for a floor.",
+      "syntax": ".set_monster_class_reset_hp true",
+      "params": [ { "key": "true/false", "desc": "Bool. Reset HP during transform." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["transform reset hp", "full hp on swap", "class swap hp"],
+      "examples": [ { "code": ".set_monster_class_reset_hp true", "note": "New form starts at full HP." } ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_reset_buffs",
+      "name": "Class Swap: Reset Buffs",
+      "category": "transform-stance",
+      "summary": "When set, strips buffs/stat overrides during the class swap.",
+      "syntax": ".set_monster_class_reset_buffs true",
+      "params": [ { "key": "true/false", "desc": "Bool. Strip buffs during transform." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["transform reset buffs", "clear buffs on swap", "class swap buffs"],
+      "examples": [ { "code": ".set_monster_class_reset_buffs true", "note": "New form loses prior buffs." } ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_reset_scale",
+      "name": "Class Swap: Reset Scale",
+      "category": "transform-stance",
+      "summary": "When set, resets the monster's visual/size scale on swap.",
+      "syntax": ".set_monster_class_reset_scale true",
+      "params": [ { "key": "true/false", "desc": "Bool. Reset visual scale during transform." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["transform reset scale", "size reset", "class swap scale"],
+      "examples": [ { "code": ".set_monster_class_reset_scale true", "note": "Resets sprite scale on transform." } ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_clear_initative",
+      "name": "Class Swap: Clear Initiative",
+      "category": "transform-stance",
+      "summary": "When set, clears initiative on the class swap. (Spelling 'initative' is verbatim in the game data.)",
+      "syntax": ".set_monster_class_clear_initative true",
+      "params": [ { "key": "true/false", "desc": "Bool. Clear initiative during transform." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["transform clear initiative", "class swap initiative", "reset turn order"],
+      "examples": [ { "code": ".set_monster_class_clear_initative true", "note": "New form re-rolls initiative." } ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_clear_monster_brain_cooldowns",
+      "name": "Class Swap: Clear Brain Cooldowns",
+      "category": "transform-stance",
+      "summary": "When set, clears the monster's brain/skill cooldowns during the class swap.",
+      "syntax": ".set_monster_class_clear_monster_brain_cooldowns true",
+      "params": [ { "key": "true/false", "desc": "Bool. Clear AI/skill cooldowns during transform." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["transform clear cooldowns", "reset ai", "class swap brain"],
+      "examples": [ { "code": ".set_monster_class_clear_monster_brain_cooldowns true", "note": "New form's skills are all off cooldown." } ],
+      "conf": "high"
+    },
+    {
+      "id": "set_monster_class_carry_over_hp_min_percent",
+      "name": "Class Swap: HP Carry-over Floor",
+      "category": "transform-stance",
+      "summary": "HP-carryover floor on the monster-class swap (minimum % HP the new form starts with). Parser-confirmed valid, unused in base.",
+      "syntax": ".set_monster_class_carry_over_hp_min_percent <frac>",
+      "params": [ { "key": "<frac>", "desc": "Minimum HP fraction carried into the new form." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["transform hp floor", "carry over hp", "min hp on swap"],
+      "examples": [ { "code": ".set_monster_class_carry_over_hp_min_percent 50%", "note": "New form starts with at least 50% HP." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "xform_vampire",
+      "name": "Transform to Vampire",
+      "category": "transform-stance",
+      "summary": "Transforms the performer into the vampiric (Crimson Curse) form. Hash-dispatched (Crimson Court); semantics data-derived.",
+      "syntax": ".xform_vampire 1",
+      "params": [ { "key": "1", "desc": "Int flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["transform vampire", "crimson curse form", "vampiric"],
+      "examples": [ { "code": ".xform_vampire 1", "note": "Turns the performer into the vampire form." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "steal_buff_stat_type",
+      "name": "Steal Buff (by stat)",
+      "category": "steal",
+      "summary": "Names a stat-type category to steal from the target's buffs, transferring matching buffs to the performer. .target must be an enemy (target / target_group / target_group_other).",
+      "syntax": ".steal_buff_stat_type \"<stat>\"",
+      "params": [ { "key": "<stat>", "desc": "Stat-type category of buff to steal." } ],
+      "targets": ["target", "target_group", "target_group_other"],
+      "standalone": true,
+      "keywords": ["steal buff", "rip buff", "plunder", "mug", "transfer buff"],
+      "examples": [
+        { "code": "effect: .name \"Plunder\" .target target .on_hit true .steal_buff_stat_type \"defense_rating\"", "note": "Steals dodge buffs from the enemy." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "steal_buff_source_type",
+      "name": "Steal Buff (by source)",
+      "category": "steal",
+      "summary": "Installs a steal-buff predicate matching a source category and transfers those buffs from target to performer. .target must be an enemy.",
+      "syntax": ".steal_buff_source_type \"<src>\"",
+      "params": [ { "key": "<src>", "desc": "Source category (bsrc_*) of buff to steal." } ],
+      "targets": ["target", "target_group", "target_group_other"],
+      "standalone": true,
+      "keywords": ["steal buff source", "rip buff", "plunder", "mug"],
+      "examples": [ { "code": ".steal_buff_source_type \"bsrc_skill\"", "note": "Steals skill-sourced buffs off the enemy." } ],
+      "conf": "high"
+    },
+    {
+      "id": "bonus_action_next_turn",
+      "name": "Bonus Action Next Turn",
+      "category": "turn-economy",
+      "summary": "Grants the target a bonus action next turn.",
+      "syntax": ".bonus_action_next_turn true",
+      "params": [ { "key": "true/false", "desc": "Bool. Grant an extra action next turn." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["extra turn", "bonus action", "act again", "double move", "extra action"],
+      "examples": [
+        { "code": "effect: .name \"Rally\" .target performer .on_hit true .bonus_action_next_turn true", "note": "Performer acts twice next round." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "initiative_change",
+      "name": "Initiative Change",
+      "category": "turn-economy",
+      "summary": "Delta to actor initiative — moves them earlier/later in turn order.",
+      "syntax": ".initiative_change <int>",
+      "params": [ { "key": "<int>", "desc": "Initiative delta (positive = act sooner)." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["initiative", "haste", "jump the order", "move up turn", "turn order"],
+      "examples": [
+        { "code": "effect: .name \"Hasten\" .target performer .on_hit true .initiative_change 2", "note": "Bumps the performer up the turn order." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "refreshes_skill_uses",
+      "name": "Refresh Skill Uses",
+      "category": "turn-economy",
+      "summary": "Refreshes limited (per-battle) skill uses.",
+      "syntax": ".refreshes_skill_uses true",
+      "params": [ { "key": "true/false", "desc": "Bool. Reset limited skill uses." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["refresh skill", "reset cooldown", "reload", "recharge skill"],
+      "examples": [
+        { "code": ".refreshes_skill_uses true", "note": "Restores spent per-battle skill uses." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "trigger_limit_maximum_increase",
+      "name": "Trigger Limit Max +",
+      "category": "turn-economy",
+      "summary": "Raises the maximum trigger-limit counter on the buff/effect's trigger tracking.",
+      "syntax": ".trigger_limit_maximum_increase <int>",
+      "params": [ { "key": "<int>", "desc": "Amount to raise the max trigger limit." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["trigger limit", "max triggers", "trigger cap"],
+      "examples": [ { "code": ".trigger_limit_maximum_increase 1", "note": "Allows one more trigger." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "trigger_limit_minimum_increase",
+      "name": "Trigger Limit Min +",
+      "category": "turn-economy",
+      "summary": "Raises the minimum trigger-limit counter.",
+      "syntax": ".trigger_limit_minimum_increase <int>",
+      "params": [ { "key": "<int>", "desc": "Amount to raise the min trigger limit." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["trigger limit", "min triggers", "trigger floor"],
+      "examples": [ { "code": ".trigger_limit_minimum_increase 1", "note": "Raises the minimum trigger count." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "disease",
+      "name": "Inflict Quirk / Disease",
+      "category": "curio-utility",
+      "summary": "Grants a named quirk to the target — NOT disease-restricted; the id can be positive/negative/disease (resolves against the single global quirk library). .disease \"any\" is the only disease-FILTERED form (random from the disease pool). Field name is historical.",
+      "syntax": ".disease \"<quirk_or_disease_id>\"",
+      "params": [ { "key": "<id>", "desc": "A quirk/disease id, or \"any\" for a random disease." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["give quirk", "inflict", "afflict", "disease", "curse", "quirk"],
+      "examples": [
+        { "code": "effect: .name \"Give Disease\" .target target .curio_result_type negative .on_hit true .disease \"any\"", "note": "Inflicts a random disease." },
+        { "code": ".disease \"alcoholism\"", "note": "Grants a specific (non-disease) quirk." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "gain_random_quirk_negative",
+      "name": "Gain Random Negative Quirk",
+      "category": "curio-utility",
+      "summary": "When true, the target gains a random negative quirk.",
+      "syntax": ".gain_random_quirk_negative true",
+      "params": [ { "key": "true/false", "desc": "Bool. Grant a random negative quirk." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["random quirk", "negative quirk", "bad quirk", "affliction"],
+      "examples": [ { "code": ".gain_random_quirk_negative true", "note": "Adds a random negative quirk." } ],
+      "conf": "high"
+    },
+    {
+      "id": "gain_random_quirk_positive_percentage",
+      "name": "Gain Random Positive Quirk (%)",
+      "category": "curio-utility",
+      "summary": "Percent chance to grant a random positive quirk.",
+      "syntax": ".gain_random_quirk_positive_percentage <0-100>",
+      "params": [ { "key": "<0-100>", "desc": "Percent chance to add a positive quirk." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["random quirk", "positive quirk", "good quirk", "chance quirk"],
+      "examples": [ { "code": ".gain_random_quirk_positive_percentage 50", "note": "50% chance to add a positive quirk." } ],
+      "conf": "high"
+    },
+    {
+      "id": "gain_trinket",
+      "name": "Gain Trinket (specific)",
+      "category": "curio-utility",
+      "summary": "Grants a specific trinket by id. Town/inventory-side; not executed in the combat apply fn.",
+      "syntax": ".gain_trinket \"<id>\"",
+      "params": [ { "key": "<id>", "desc": "The trinket id to grant." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["grant trinket", "give trinket", "reward trinket"],
+      "examples": [ { "code": ".gain_trinket \"ancestors_map\"", "note": "Grants a named trinket." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "gain_random_trinket",
+      "name": "Gain Random Trinket",
+      "category": "curio-utility",
+      "summary": "Grants a random trinket from a rarity/pool id. Town/inventory-side.",
+      "syntax": ".gain_random_trinket \"<pool>\"",
+      "params": [ { "key": "<pool>", "desc": "Trinket rarity/pool id to draw from." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["random trinket", "reward trinket", "trinket pool"],
+      "examples": [ { "code": ".gain_random_trinket \"common\"", "note": "Grants a random common trinket." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "destroy_trinket",
+      "name": "Destroy Trinket",
+      "category": "curio-utility",
+      "summary": "When true, destroys a trinket on the target.",
+      "syntax": ".destroy_trinket true",
+      "params": [ { "key": "true/false", "desc": "Bool. Destroy a trinket." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["destroy trinket", "break trinket", "lose trinket"],
+      "examples": [ { "code": ".destroy_trinket true", "note": "Destroys a trinket held by the target." } ],
+      "conf": "high"
+    },
+    {
+      "id": "use_item_type",
+      "name": "Use Item (type)",
+      "category": "curio-utility",
+      "summary": "Names the item category/type to consume/use. Requires .use_item_id alongside it.",
+      "syntax": ".use_item_type \"<type>\" .use_item_id \"<id>\"",
+      "params": [ { "key": "<type>", "desc": "Item category/type." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["use item", "consume item", "item type"],
+      "examples": [ { "code": ".use_item_type \"provision\" .use_item_id \"food\"", "note": "Consumes a food provision." } ],
+      "conf": "high"
+    },
+    {
+      "id": "use_item_id",
+      "name": "Use Item (id)",
+      "category": "curio-utility",
+      "summary": "Identifies which item to consume/use. Requires .use_item_type alongside it.",
+      "syntax": ".use_item_id \"<id>\"",
+      "params": [ { "key": "<id>", "desc": "Specific item id." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["use item", "consume item", "item id"],
+      "examples": [ { "code": ".use_item_type \"provision\" .use_item_id \"food\"", "note": "Both fields required together." } ],
+      "conf": "high"
+    },
+    {
+      "id": "capture",
+      "name": "Capture / Abduct",
+      "category": "curio-utility",
+      "summary": "Capture amount/flag (Shrieker-style 'capture into party' mechanic). Pair with capture_remove_from_party.",
+      "syntax": ".capture <int>",
+      "params": [ { "key": "<int>", "desc": "Capture amount/flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["capture", "abduct", "steal hero", "shrieker", "kidnap"],
+      "examples": [ { "code": ".capture 1 .capture_remove_from_party 1", "note": "Abducts a party member." } ],
+      "conf": "high"
+    },
+    {
+      "id": "capture_remove_from_party",
+      "name": "Capture: Remove From Party",
+      "category": "curio-utility",
+      "summary": "Whether/how many party members are removed on capture.",
+      "syntax": ".capture_remove_from_party <int>",
+      "params": [ { "key": "<int>", "desc": "Members removed from party on capture." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["capture remove", "abduct remove", "kidnap party"],
+      "examples": [ { "code": ".capture 1 .capture_remove_from_party 1", "note": "Removes the captured member from the party." } ],
+      "conf": "high"
+    },
+    {
+      "id": "crimson_harvest",
+      "name": "Crimson Harvest",
+      "category": "curio-utility",
+      "summary": "Crimson Court blood-harvest mechanic. Hash-dispatched; semantics data-derived.",
+      "syntax": ".crimson_harvest 1",
+      "params": [ { "key": "1", "desc": "Int flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["crimson harvest", "blood harvest", "crimson court"],
+      "examples": [ { "code": ".crimson_harvest 1", "note": "Triggers the blood-harvest mechanic." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "crimson_swarm",
+      "name": "Crimson Swarm",
+      "category": "curio-utility",
+      "summary": "Spawn / advance the Crimson swarm. Hash-dispatched; semantics data-derived.",
+      "syntax": ".crimson_swarm 1",
+      "params": [ { "key": "1", "desc": "Int flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["crimson swarm", "swarm", "crimson court"],
+      "examples": [ { "code": ".crimson_swarm 1", "note": "Advances the Crimson swarm." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "blood_counter",
+      "name": "Blood Counter",
+      "category": "curio-utility",
+      "summary": "Increments a blood/curse counter token on the actor. Hash-dispatched (Crimson Court); semantics data-derived.",
+      "syntax": ".blood_counter 1",
+      "params": [ { "key": "1", "desc": "Int flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["blood counter", "curse counter", "crimson court token"],
+      "examples": [ { "code": ".blood_counter 1", "note": "Increments the blood counter." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "viscount_feed_corpse",
+      "name": "Viscount Feed Corpse",
+      "category": "curio-utility",
+      "summary": "Viscount boss: consume a corpse to heal/empower. Hash-dispatched (Crimson Court); semantics data-derived.",
+      "syntax": ".viscount_feed_corpse 1",
+      "params": [ { "key": "1", "desc": "Int flag." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["viscount", "feed corpse", "eat corpse", "crimson court boss"],
+      "examples": [ { "code": ".viscount_feed_corpse 1", "note": "Viscount devours a corpse." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "curio",
+      "name": "Curio Flag",
+      "category": "curio-utility",
+      "summary": "Marks/flags the effect as a curio-interaction result (curio bool/count). Full runtime consumption is outside the core fns.",
+      "syntax": ".curio <int>",
+      "params": [ { "key": "<int>", "desc": "Curio flag/count." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["curio", "curio result", "interaction"],
+      "examples": [ { "code": ".curio 1", "note": "Marks the effect as a curio result." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "curio_result_type",
+      "name": "Curio Result Type",
+      "category": "frame",
+      "summary": "Names the curio result category (tooltip colour + curio bucket). Code-certain 4 values: negative(0), neutral(1, default), positive(2), none(3). Vanilla uses only negative/positive in practice.",
+      "syntax": ".curio_result_type <type>",
+      "params": [ { "key": "<type>", "desc": "One of: negative, neutral, positive, none." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["curio result", "tooltip colour", "positive", "negative", "result type"],
+      "examples": [ { "code": ".curio_result_type negative", "note": "Red tooltip; DoTs usually set this negative." } ],
+      "conf": "high"
+    },
+    {
+      "id": "gain_random_quirk_positive",
+      "name": "(see gain_random_quirk_positive_percentage)",
+      "category": "curio-utility",
+      "summary": "Alias note: the positive-quirk grant is expressed as gain_random_quirk_positive_percentage (a percent), not a bare bool. Prefer that field.",
+      "syntax": ".gain_random_quirk_positive_percentage <0-100>",
+      "params": [ { "key": "<0-100>", "desc": "Percent chance; see gain_random_quirk_positive_percentage." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["random positive quirk", "good quirk"],
+      "examples": [ { "code": ".gain_random_quirk_positive_percentage 25", "note": "Canonical form of the positive-quirk grant." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "monsterType",
+      "name": "Monster-Type Gate",
+      "category": "gates",
+      "summary": "Conditions/bonuses the effect vs a monster type. Combined with .keyStatus to set the instant flag. (For buff-side conditions, use a rule_type on the buff instead.)",
+      "syntax": ".monsterType \"<type>\"",
+      "params": [ { "key": "<type>", "desc": "man, unholy, beast, eldritch, vampire, husk, corpse." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["vs type", "anti-X", "bonus vs", "slayer", "monster type", "man", "unholy", "eldritch", "beast"],
+      "examples": [
+        { "code": "effect: .name \"Smite vUnholy\" .target target .on_hit true .monsterType \"unholy\" .combat_stat_buff 1 .damage_low_multiply 50% .damage_high_multiply 50%", "note": "A bonus vs unholy enemies." }
+      ],
+      "conf": "medium"
+    },
+    {
+      "id": "requires_burning_target",
+      "name": "Requires Burning Target",
+      "category": "gates",
+      "summary": "Gates the effect on the target's Burning status — only lands if the target is on fire.",
+      "syntax": ".requires_burning_target true",
+      "params": [ { "key": "true/false", "desc": "Bool gate." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["if burning", "burning gate", "on fire", "requires burn"],
+      "examples": [ { "code": ".requires_burning_target true", "note": "Only applies to burning targets." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "requires_not_burning_target",
+      "name": "Requires Not-Burning Target",
+      "category": "gates",
+      "summary": "Gates the effect on the target NOT being Burning.",
+      "syntax": ".requires_not_burning_target true",
+      "params": [ { "key": "true/false", "desc": "Bool gate." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["if not burning", "not on fire", "requires no burn"],
+      "examples": [ { "code": ".requires_not_burning_target true", "note": "Only applies if the target is not burning." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "can_apply_on_corpse",
+      "name": "Can Apply On Corpse",
+      "category": "gates",
+      "summary": "Allows the effect to apply to a corpse target.",
+      "syntax": ".can_apply_on_corpse true",
+      "params": [ { "key": "true/false", "desc": "Bool. Permit corpse targets." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["on corpse", "corpse target", "apply corpse"],
+      "examples": [ { "code": ".can_apply_on_corpse true", "note": "Effect can hit corpses." } ],
+      "conf": "high"
+    },
+    {
+      "id": "can_apply_on_death",
+      "name": "Can Apply On Death",
+      "category": "gates",
+      "summary": "Allows the effect to apply even when the target is dying/dead. REQUIRED on move effects (push/pull/shuffle) — validator warns if a move effect lacks it.",
+      "syntax": ".can_apply_on_death true",
+      "params": [ { "key": "true/false", "desc": "Bool. Permit dying/dead targets." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["on death", "apply on death", "dying target", "move effect requirement"],
+      "examples": [ { "code": ".push 1 .can_apply_on_death true", "note": "Required companion to move effects." } ],
+      "conf": "high"
+    },
+    {
+      "id": "swap_source_and_target",
+      "name": "Swap Source and Target",
+      "category": "gates",
+      "summary": "Swaps the performer and target roles for this effect (resolves against the swapped actors). The Antiquarian 'Protect Me' pattern — make an ally guard the performer.",
+      "syntax": ".swap_source_and_target true",
+      "params": [ { "key": "true/false", "desc": "Bool. Swap performer/target roles." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["role swap", "reverse", "they-guard-me", "swap roles", "protect me"],
+      "examples": [
+        { "code": ".guard 1 .duration 3 .swap_source_and_target true", "note": "The targeted ally guards the performer instead." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "performer_rank_target",
+      "name": "Performer-Rank Target",
+      "category": "gates",
+      "summary": "When true, rank targeting is resolved from the performer's rank rather than the target's.",
+      "syntax": ".performer_rank_target true",
+      "params": [ { "key": "true/false", "desc": "Bool. Resolve rank from the performer." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["from my rank", "performer rank", "self rank target"],
+      "examples": [ { "code": ".performer_rank_target true", "note": "Rank targeting is relative to the performer." } ],
+      "conf": "high"
+    },
+    {
+      "id": "is_in_inventory",
+      "name": "Requires In Inventory",
+      "category": "gates",
+      "summary": "Condition: the effect requires the (trinket/item) be in inventory.",
+      "syntax": ".is_in_inventory true",
+      "params": [ { "key": "true/false", "desc": "Bool gate." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["has item", "in inventory", "requires item", "inventory gate"],
+      "examples": [ { "code": ".is_in_inventory true", "note": "Only fires if the item is held." } ],
+      "conf": "high"
+    },
+    {
+      "id": "keyStatus",
+      "name": "Key / Quest Status",
+      "category": "gates",
+      "summary": "A key/quest-status token (hashed). Also drives the instant-skill-style flag together with .monsterType.",
+      "syntax": ".keyStatus \"<tag>\"",
+      "params": [ { "key": "<tag>", "desc": "Key/quest-status tag." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["key status", "quest status", "flag gate", "quest tag"],
+      "examples": [ { "code": ".keyStatus \"some_quest_flag\"", "note": "Gates on a quest/key status." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "individual_target_actor_rolls",
+      "name": "Individual Target Rolls",
+      "category": "gates",
+      "summary": "Per-target independent rolls (each target of an AoE rolls separately).",
+      "syntax": ".individual_target_actor_rolls true",
+      "params": [ { "key": "true/false", "desc": "Bool. Roll separately per target." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["per-target rolls", "individual rolls", "aoe rolls", "separate rolls"],
+      "examples": [ { "code": ".individual_target_actor_rolls true", "note": "Each AoE target rolls independently." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "affliction_blockable_chance",
+      "name": "Affliction-Blockable Chance",
+      "category": "gates",
+      "summary": "Chance the effect is blocked while the target is Afflicted (companion to virtue_blockable_chance). Parser-confirmed valid, unused in base.",
+      "syntax": ".affliction_blockable_chance <frac>",
+      "params": [ { "key": "<frac>", "desc": "Block probability while Afflicted." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["affliction block", "blockable", "afflicted gate"],
+      "examples": [ { "code": ".affliction_blockable_chance 50%", "note": "50% blocked when the target is Afflicted." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "virtue_blockable_chance",
+      "name": "Virtue-Blockable Chance",
+      "category": "gates",
+      "summary": "Probability the effect is blocked while the target is Virtued (companion to affliction_blockable_chance).",
+      "syntax": ".virtue_blockable_chance <frac>",
+      "params": [ { "key": "<frac>", "desc": "Block probability while Virtued." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["virtue block", "blockable", "virtued gate"],
+      "examples": [ { "code": ".virtue_blockable_chance 50%", "note": "50% blocked when the target is Virtued." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "rank_target",
+      "name": "Rank Target (set)",
+      "category": "gates",
+      "summary": "Explicit rank-target set. Parser-confirmed valid, unused in base.",
+      "syntax": ".rank_target \"<rank>\"",
+      "params": [ { "key": "<rank>", "desc": "Rank(s) to target." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["rank target", "target rank", "explicit rank"],
+      "examples": [ { "code": ".rank_target \"1\"", "note": "Explicitly targets rank 1." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "clear_rank_target",
+      "name": "Clear Rank Target",
+      "category": "gates",
+      "summary": "Clears/targets a specific rank. The '@' form (e.g. @N) is the alternate/absolute rank encoding.",
+      "syntax": ".clear_rank_target \"<N | @N>\"",
+      "params": [ { "key": "<N | @N>", "desc": "Rank digit, or @N for absolute-rank encoding." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["clear rank target", "rank clear", "absolute rank"],
+      "examples": [ { "code": ".clear_rank_target \"@2\"", "note": "Absolute-rank clear." } ],
+      "conf": "high"
+    },
+    {
+      "id": "name",
+      "name": "Effect Name",
+      "category": "frame",
+      "summary": "The effect's unique identifier — always the first field. Hashed and used as the registry key; referenced by skills/trinkets/quirks. Reuse a vanilla name to reuse its art/behaviour.",
+      "syntax": ".name \"<unique>\"",
+      "params": [ { "key": "<unique>", "desc": "Unique effect name string (first field)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["name", "id", "identity", "effect name"],
+      "examples": [ { "code": ".name \"Cru Smite vUnholy 2\"", "note": "Overhaul naming: '<Hero> <Skill> <Variant> <rank>'." } ],
+      "conf": "high"
+    },
+    {
+      "id": "target",
+      "name": "Effect Target",
+      "category": "frame",
+      "summary": "Who the effect resolves against. 11 values. Steal requires target/target_group; buff/heal application gate on target(1)/target_group(4); summon requires performer.",
+      "syntax": ".target \"<who>\"",
+      "params": [
+        { "key": "<who>", "desc": "performer, target, performer_group, performer_group_other, target_group, target_group_other, target_enemy_group, target_enemy_rank, target_enemy_random, this_trinket, global." }
+      ],
+      "targets": ["performer", "target", "performer_group", "performer_group_other", "target_group", "target_group_other", "target_enemy_group", "target_enemy_rank", "target_enemy_random", "this_trinket", "global"],
+      "standalone": false,
+      "keywords": ["target", "who", "performer", "target group", "scope", "self", "ally", "enemy"],
+      "examples": [
+        { "code": ".target performer_group_other", "note": "Resolves against the performer's party except the performer." }
+      ],
+      "conf": "high"
+    },
+    {
+      "id": "chance",
+      "name": "Effect Chance",
+      "category": "frame",
+      "summary": "Proc chance of the effect vs the roll (typically 100% since skill accuracy already gated the hit). Core application gate for stun/dot/kill/etc.",
+      "syntax": ".chance <frac>",
+      "params": [ { "key": "<frac>", "desc": "Application chance (e.g. 100%)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["chance", "proc", "apply chance", "probability"],
+      "examples": [ { "code": ".chance 100%", "note": "Always applies once the hit lands." } ],
+      "conf": "high"
+    },
+    {
+      "id": "on_hit",
+      "name": "On Hit",
+      "category": "frame",
+      "summary": "Whether the effect fires on a hit result. One of on_hit / on_miss is REQUIRED (unless .item) — validator errors otherwise.",
+      "syntax": ".on_hit true",
+      "params": [ { "key": "true/false", "desc": "Bool. Fire on hit." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["on hit", "fire on hit", "trigger on hit"],
+      "examples": [ { "code": ".on_hit true", "note": "The common trigger for offensive effects." } ],
+      "conf": "high"
+    },
+    {
+      "id": "on_miss",
+      "name": "On Miss",
+      "category": "frame",
+      "summary": "Whether the effect fires on a miss result. One of on_hit / on_miss is REQUIRED (unless .item).",
+      "syntax": ".on_miss true",
+      "params": [ { "key": "true/false", "desc": "Bool. Fire on miss." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["on miss", "fire on miss", "trigger on miss"],
+      "examples": [ { "code": ".on_miss true", "note": "Fires even when the attack misses (e.g. self-move on lunge)." } ],
+      "conf": "high"
+    },
+    {
+      "id": "queue",
+      "name": "Queue",
+      "category": "frame",
+      "summary": "Marks the effect as applied on the queued/turn-resolution pass rather than immediately. Required for stun/stress/torch; forbidden for move/control effects.",
+      "syntax": ".queue true",
+      "params": [ { "key": "true/false", "desc": "Bool. Apply on the queued pass." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["queue", "queued", "turn resolution", "delayed apply"],
+      "examples": [ { "code": ".stun 1 .queue true", "note": "Stun/stress/torch must be queued." } ],
+      "conf": "high"
+    },
+    {
+      "id": "apply_once",
+      "name": "Apply Once",
+      "category": "frame",
+      "summary": "For AoE: apply the payload once, not per target. Warns if a skill-instant apply-once effect has a team target type.",
+      "syntax": ".apply_once true",
+      "params": [ { "key": "true/false", "desc": "Bool. Apply once across an AoE." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["apply once", "once", "not per target", "single apply"],
+      "examples": [ { "code": ".apply_once true", "note": "One application for a group effect." } ],
+      "conf": "high"
+    },
+    {
+      "id": "apply_with_result",
+      "name": "Apply With Result",
+      "category": "frame",
+      "summary": "Flag: the effect application is gated on / carries the parent skill's hit result.",
+      "syntax": ".apply_with_result true",
+      "params": [ { "key": "true/false", "desc": "Bool. Carry the parent skill's hit result." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["apply with result", "carry result", "hit result gate"],
+      "examples": [ { "code": ".apply_with_result true", "note": "Ties application to the parent skill's result." } ],
+      "conf": "high"
+    },
+    {
+      "id": "duration",
+      "name": "Duration",
+      "category": "frame",
+      "summary": "Number of rounds/turns for the DoT/buff/riposte/guard applied. Every DoT branch scales by this. Validated non-zero for riposte/guard effects.",
+      "syntax": ".duration <int>",
+      "params": [ { "key": "<int>", "desc": "Rounds the effect lasts." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["duration", "rounds", "turns", "lifetime", "how long"],
+      "examples": [ { "code": ".dotBleed 2 .duration 3", "note": "Required for DoT/guard/riposte." } ],
+      "conf": "high"
+    },
+    {
+      "id": "bark",
+      "name": "Bark",
+      "category": "frame",
+      "summary": "Localization/bark id spoken when the effect fires (a line of flavour text).",
+      "syntax": ".bark \"<id>\"",
+      "params": [ { "key": "<id>", "desc": "Localization bark id." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["bark", "flavour", "voice line", "quip", "speech"],
+      "examples": [ { "code": ".bark \"some_bark_id\"", "note": "Plays a bark when the effect fires." } ],
+      "conf": "high"
+    },
+    {
+      "id": "has_description",
+      "name": "Has Description",
+      "category": "frame",
+      "summary": "Marks whether the effect shows a description string in tooltips.",
+      "syntax": ".has_description true",
+      "params": [ { "key": "true/false", "desc": "Bool. Show a description string." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["has description", "tooltip", "show description"],
+      "examples": [ { "code": ".has_description true", "note": "Displays a tooltip description." } ],
+      "conf": "high"
+    },
+    {
+      "id": "crit_doesnt_apply_to_roll",
+      "name": "Crit Doesn't Apply To Roll",
+      "category": "frame",
+      "summary": "When set, a critical roll on this effect does not affect the effect's own success roll (crit is cosmetic/damage-only, not re-rolled).",
+      "syntax": ".crit_doesnt_apply_to_roll true",
+      "params": [ { "key": "true/false", "desc": "Bool. Crit does not affect this effect's roll." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["crit roll", "crit cosmetic", "no crit reroll"],
+      "examples": [ { "code": ".crit_doesnt_apply_to_roll true", "note": "Crit affects damage only, not the effect's success roll." } ],
+      "conf": "high"
+    },
+    {
+      "id": "skill_instant",
+      "name": "Skill Instant",
+      "category": "frame",
+      "summary": "Marks the effect as an instantly-resolving skill. Validator warns if it lacks 100% chance, lacks a performer target, or is apply_once with a team target.",
+      "syntax": ".skill_instant true",
+      "params": [ { "key": "true/false", "desc": "Bool. Resolve instantly." } ],
+      "targets": ["performer"],
+      "standalone": false,
+      "keywords": ["skill instant", "instant", "immediate skill"],
+      "examples": [ { "code": ".skill_instant true .chance 100% .target performer", "note": "Instant effect; needs 100% chance + performer target." } ],
+      "conf": "high"
+    },
+    {
+      "id": "is_trigger_effect",
+      "name": "Is Trigger Effect",
+      "category": "frame",
+      "summary": "Marks the effect as trigger-fired (vs directly applied).",
+      "syntax": ".is_trigger_effect true",
+      "params": [ { "key": "true/false", "desc": "Bool. Fired by a trigger." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["trigger effect", "triggered", "reactive"],
+      "examples": [ { "code": ".is_trigger_effect true", "note": "Fired by a trigger rather than directly." } ],
+      "conf": "high"
+    },
+    {
+      "id": "item",
+      "name": "Item (grant/consume)",
+      "category": "curio-utility",
+      "summary": "Grants/consumes an item count. In the validator it lets an effect skip the on_hit/on_miss requirement; the grant is handled by the inventory routine.",
+      "syntax": ".item <int>",
+      "params": [ { "key": "<int>", "desc": "Item count to grant/consume." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["item", "grant item", "consume item", "item count"],
+      "examples": [ { "code": ".item 1", "note": "Grants an item; exempt from on_hit/on_miss." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "damage_type",
+      "name": "Damage Type",
+      "category": "frame",
+      "summary": "The damage category, passed to the damage vcall. 20 values; idx 0 unknown is default, 0x14 invalid triggers a validation error.",
+      "syntax": ".damage_type <type>",
+      "params": [
+        { "key": "<type>", "desc": "unknown, trap, obstacle, hunger, attack, bleed, healing, poisoned, captor, ddexit, townexit, death, heartattack, theblood, effect, quirkevolutiondeath, reflect, riposte, additionaleffect, burn." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["damage type", "attack type", "bleed", "burn", "poisoned", "reflect", "riposte"],
+      "examples": [ { "code": ".health_damage 5 .damage_type effect", "note": "Attributes the direct HP damage as effect-sourced." } ],
+      "conf": "high"
+    },
+    {
+      "id": "damage_source_type",
+      "name": "Damage Source Type",
+      "category": "frame",
+      "summary": "Who/what the damage is attributed to. 14 values; idx 0 unknown is default, 0xe invalid triggers a validation error.",
+      "syntax": ".damage_source_type <type>",
+      "params": [
+        { "key": "<type>", "desc": "unknown, hunger, trap, obstacle, friendly, monster, hero, friendly_quirk_actout, friendly_trait_actout, item, effect, quirk, reflect, trinket." }
+      ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["damage source", "attribution", "hero", "monster", "trinket", "effect"],
+      "examples": [ { "code": ".damage_source_type effect", "note": "Attributes the damage to an effect source." } ],
+      "conf": "high"
+    },
+    {
+      "id": "damage_source_data",
+      "name": "Damage Source Data",
+      "category": "frame",
+      "summary": "Identifies the source-data id for damage attribution (hashed), passed alongside the damage call.",
+      "syntax": ".damage_source_data \"<id>\"",
+      "params": [ { "key": "<id>", "desc": "Source-data id string (hashed)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["damage source data", "attribution id", "source data"],
+      "examples": [ { "code": ".damage_source_data \"some_source\"", "note": "Extra attribution id for the damage." } ],
+      "conf": "high"
+    },
+    {
+      "id": "skips_endless_wave_curio",
+      "name": "Skips Endless-Wave Curio",
+      "category": "frame",
+      "summary": "Pure data flag consumed by endless-wave/curio logic — marks the effect to skip the endless-wave curio.",
+      "syntax": ".skips_endless_wave_curio true",
+      "params": [ { "key": "true/false", "desc": "Bool. Skip endless-wave curio." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["endless wave", "curio skip", "endless mode"],
+      "examples": [ { "code": ".skips_endless_wave_curio true", "note": "Endless-wave-specific flag." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "guaranteed_town_event",
+      "name": "Guaranteed Town Event",
+      "category": "curio-utility",
+      "summary": "Flags a guaranteed town event trigger. Town-flow effect; not read in combat apply.",
+      "syntax": ".guaranteed_town_event true",
+      "params": [ { "key": "true/false", "desc": "Bool. Force a town event." } ],
+      "targets": [],
+      "standalone": true,
+      "keywords": ["town event", "guaranteed event", "estate event"],
+      "examples": [ { "code": ".guaranteed_town_event true", "note": "Guarantees a town event." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "battle_start_effect_id",
+      "name": "Battle-Start Effect (actor def)",
+      "category": "skill-line",
+      "summary": "NOT a standalone effect field — an ACTOR-definition token (.battle_start_effect_ids, a list) parsed into the actor's mode struct; those effects fire at combat start.",
+      "syntax": ".battle_start_effect_ids \"a b\"",
+      "params": [ { "key": "\"a b\"", "desc": "Effect ids that fire when battle starts (up to 8)." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["battle start", "combat start effect", "on battle begin"],
+      "examples": [ { "code": ".battle_start_effect_ids \"Buff Self\"", "note": "Applied on the actor definition, not an effect record." } ],
+      "conf": "medium"
+    },
+    {
+      "id": "is_continue_turn",
+      "name": "Continue Turn (free cast)",
+      "category": "skill-line",
+      "summary": "SKILL field, not an effect: the skill does not end the turn (a free cast / bonus action). Usually paired with .per_turn_limit.",
+      "syntax": ".is_continue_turn true",
+      "params": [ { "key": "true/false", "desc": "Bool on the combat_skill line." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["free cast", "doesn't end turn", "bonus action", "continue turn"],
+      "examples": [ { "code": "combat_skill: ... .is_continue_turn true .per_turn_limit 1", "note": "A once-per-turn free action." } ],
+      "conf": "high"
+    },
+    {
+      "id": "ignore_stealth",
+      "name": "Ignore Stealth",
+      "category": "skill-line",
+      "summary": "SKILL field: the skill can target stealthed actors.",
+      "syntax": ".ignore_stealth true",
+      "params": [ { "key": "true/false", "desc": "Bool on the combat_skill line." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["ignore stealth", "see stealth", "hit stealthed"],
+      "examples": [ { "code": "combat_skill: ... .ignore_stealth true", "note": "Skill can hit stealthed enemies." } ],
+      "conf": "high"
+    },
+    {
+      "id": "ignore_guard",
+      "name": "Ignore Guard",
+      "category": "skill-line",
+      "summary": "SKILL field: the skill bypasses guard redirection and hits the intended target.",
+      "syntax": ".ignore_guard true",
+      "params": [ { "key": "true/false", "desc": "Bool on the combat_skill line." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["ignore guard", "bypass guard", "hit through guard"],
+      "examples": [ { "code": "combat_skill: ... .ignore_guard true", "note": "Ignores a guardian and hits the real target." } ],
+      "conf": "high"
+    },
+    {
+      "id": "move",
+      "name": "Move On Use (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: the performer moves forward/back when using the skill (fires even on miss — the Lance/Point-Blank pattern).",
+      "syntax": ".move <fwd> <back>",
+      "params": [ { "key": "<fwd> <back>", "desc": "Ranks forward and back the performer moves." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["move on use", "lunge", "retreat", "self move", "advance"],
+      "examples": [ { "code": "combat_skill: ... .move 1 0", "note": "Advances one rank when using the skill." } ],
+      "conf": "high"
+    },
+    {
+      "id": "valid_modes",
+      "name": "Valid Modes (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: which modes/stances the skill is usable in (pairs with the effect .set_mode). The stance-gating half of the Thorn/Cook pattern.",
+      "syntax": ".valid_modes \"<mode> ...\"",
+      "params": [ { "key": "modes", "desc": "One or more mode names the skill works in." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["valid modes", "stance gated", "mode gate", "usable in stance"],
+      "examples": [ { "code": "combat_skill: ... .valid_modes \"aggressive\"", "note": "Skill only usable in the aggressive stance." } ],
+      "conf": "high"
+    },
+    {
+      "id": "per_battle_limit",
+      "name": "Per-Battle Limit (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: how many times the skill can be used per battle.",
+      "syntax": ".per_battle_limit <int>",
+      "params": [ { "key": "<int>", "desc": "Uses allowed per battle." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["per battle limit", "uses per battle", "limited uses"],
+      "examples": [ { "code": "combat_skill: ... .per_battle_limit 1", "note": "Usable once per battle." } ],
+      "conf": "high"
+    },
+    {
+      "id": "per_turn_limit",
+      "name": "Per-Turn Limit (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: how many times the skill can be used per turn (often paired with is_continue_turn).",
+      "syntax": ".per_turn_limit <int>",
+      "params": [ { "key": "<int>", "desc": "Uses allowed per turn." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["per turn limit", "uses per turn", "free cast limit"],
+      "examples": [ { "code": "combat_skill: ... .per_turn_limit 1 .is_continue_turn true", "note": "One free cast per turn." } ],
+      "conf": "high"
+    },
+    {
+      "id": "self_target_valid",
+      "name": "Self-Target Valid (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: the skill can target the performer itself.",
+      "syntax": ".self_target_valid true",
+      "params": [ { "key": "true/false", "desc": "Bool on the combat_skill line." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["self target", "can target self", "target self"],
+      "examples": [ { "code": "combat_skill: ... .self_target_valid true", "note": "Skill can hit the caster." } ],
+      "conf": "high"
+    },
+    {
+      "id": "extra_targets_chance",
+      "name": "Extra Targets Chance (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: chance to hit extra targets beyond the primary (paired with extra_targets_count).",
+      "syntax": ".extra_targets_chance <frac>",
+      "params": [ { "key": "<frac>", "desc": "Chance to strike additional targets." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["extra targets", "cleave", "chain", "additional targets"],
+      "examples": [ { "code": "combat_skill: ... .extra_targets_chance 50% .extra_targets_count 1", "note": "50% to hit one extra target." } ],
+      "conf": "high"
+    },
+    {
+      "id": "extra_targets_count",
+      "name": "Extra Targets Count (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: how many extra targets can be struck (paired with extra_targets_chance).",
+      "syntax": ".extra_targets_count <int>",
+      "params": [ { "key": "<int>", "desc": "Number of additional targets." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["extra targets", "cleave count", "chain count"],
+      "examples": [ { "code": "combat_skill: ... .extra_targets_count 2", "note": "Up to two extra targets." } ],
+      "conf": "high"
+    },
+    {
+      "id": "is_crit_valid",
+      "name": "Can Crit (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: whether the skill can critically hit.",
+      "syntax": ".is_crit_valid true",
+      "params": [ { "key": "true/false", "desc": "Bool on the combat_skill line." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["can crit", "crit valid", "critical hit"],
+      "examples": [ { "code": "combat_skill: ... .is_crit_valid true", "note": "Skill can crit." } ],
+      "conf": "high"
+    },
+    {
+      "id": "launch",
+      "name": "Launch Ranks (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field: which ranks the skill can be cast from (rank-string).",
+      "syntax": ".launch <ranks>",
+      "params": [ { "key": "<ranks>", "desc": "Rank digits where the skill is castable; ~ negates." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["launch", "cast from rank", "usable rank", "launch ranks"],
+      "examples": [ { "code": "combat_skill: ... .launch 12", "note": "Castable from ranks 1 and 2." } ],
+      "conf": "high"
+    },
+    {
+      "id": "skill_target",
+      "name": "Target Geometry (skill)",
+      "category": "skill-line",
+      "summary": "SKILL field (.target on the combat_skill line): what ranks the skill hits. '~'=AoE, '@'=ally/self. Distinct from the effect-record .target.",
+      "syntax": ".target <ranks>",
+      "params": [ { "key": "<ranks>", "desc": "Rank-string of hittable ranks; ~ = AoE, @ = ally/self." } ],
+      "targets": [],
+      "standalone": false,
+      "keywords": ["target geometry", "hit ranks", "aoe", "ally target", "skill target"],
+      "examples": [ { "code": "combat_skill: ... .target ~123", "note": "AoE hitting ranks 1-3." } ],
+      "conf": "high"
+    }
+  ]
+}

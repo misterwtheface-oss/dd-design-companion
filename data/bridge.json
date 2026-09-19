@@ -1,0 +1,324 @@
+{
+  "sections": [
+    {
+      "id": "chain-overview",
+      "title": "The skill → effect → buff chain",
+      "summary": "A hero skill can only express a narrow fixed vocabulary on its own combat_skill line; everything richer lives in the buff system, and the effect is the bridge that lets a skill apply a buff.",
+      "points": [
+        "A combat_skill line alone reaches only: accuracy, damage %, move, launch/target, use-limits, is_continue_turn, ignore_stealth/guard.",
+        "Persistent stat changes, resistances, conditional \"only-while-X\" modifiers, DoT-magnitude tweaks, and stress/heal-received scaling all live in the buff system, not on the skill line.",
+        "The effect is the bridge: a skill fires effects, and an effect can apply a buff — so the chain is skill → effect → buff.",
+        "This chain is precisely how a hero skill gains attributes \"normally reserved for buffs\" that it could never do alone.",
+        "Link points: combat_skill .effect \"X\" ↔ effect: .name \"X\" ↔ effect .buff_ids \"id\" ↔ buffs.json \"id\".",
+        "All names are resolved by rolling-hash lookup against the effect/buff registries; an unmatched name silently no-ops (no error outside debug). A typo does nothing."
+      ],
+      "examples": [
+        {
+          "code": "combat_skill: .id \"bulwark_of_faith\" … .effect \"Cru Bulwark Resist\"\n  ↓\neffect: .name \"Cru Bulwark Resist\" .target \"performer\" .buff_ids \"cru_bul_res_stun cru_bul_res_debuff\"\n  ↓\nshared/buffs/overhaul.buffs.json:\n  { \"id\":\"cru_bul_res_stun\", \"stat_type\":\"resistance\", \"stat_sub_type\":\"stun\",\n    \"amount\":0.15, \"duration_type\":\"combat_end\" }",
+          "note": "The full reference chain: skill names an effect, the effect applies named buff(s), the buff carries the real power. Each arrow is a string → hash lookup."
+        }
+      ]
+    },
+    {
+      "id": "four-buff-payloads",
+      "title": "The four ways an effect carries a buff (mutually exclusive)",
+      "summary": "An effect can carry a buff four ways, but they are mutually exclusive — pick exactly one per effect; the validator counts them and errors on more than one.",
+      "points": [
+        ".buff_ids \"a b c\" applies up to 8 NAMED buffs, reaches all 93 stat_types + resistances + lifecycle, is rule-gateable, and requires a buffs.json entry. This is THE bridge for buff-only powers.",
+        "Inline .combat_stat_buff 1 + .<stat>_add/_multiply is an anonymous quick stat buff reaching only the 10 combat stats, no rule gate, no buffs.json needed.",
+        "Inline .buff_type + .buff_sub_type + .buff_amount is one anonymous combat-stat buff (combat stats only), no rule gate, no buffs.json.",
+        ".riposte <n> (+ .riposte_effect) is the riposte special case, reaching riposte state only.",
+        "The inline forms are a convenience for a plain timed combat-stat swing; the moment a skill needs anything conditional, resistance-based, DoT-modifying, or from the wider stat palette, it must go through a named buff.",
+        "Exclusivity is validator-enforced: exactly one of buff_ids / combat_stat_buff(+mutators) / buff_type / riposte per effect; more than one errors."
+      ],
+      "examples": []
+    },
+    {
+      "id": "named-buff-unlocks",
+      "title": "What a named buff unlocks that skills/inline effects CANNOT reach",
+      "summary": "The whole reason the bridge exists: capabilities that have no skill field and no inline effect field, reachable only by applying a buffs.json entry.",
+      "points": [
+        "Conditional stats — the 55 rule_type gates (\"only while below 50% HP\", \"only vs Eldritch\", \"only in rank 1\", \"while stealthed\", \"first round only\", \"at Death's Door\", \"while target is burning\"…). Skill lines and inline combat_stat_buff are unconditional; only a named buff carries rule_type (+ is_false_rule to invert). This is the single biggest unlock.",
+        "Resistances — stat_type: resistance (buff stun/bleed/blight/disease/move/debuff/death_blow/trap for a duration). Skills have no resistance field and inline combat_stat_buff reaches only the 10 combat stats, not the resistance domain. A resist buff is only achievable via buff_ids.",
+        "The wider stat palette — DoT magnitude/duration mods (hp_dot_bleed_amount_percent…), stress_dmg_percent / stress_dmg_received_percent, hp_heal_received_percent, apply-chances (bleed_chance, stun_chance…), cure-chances, ignore_protection / ignore_guard, damage_reflect_percent, deathblow_chance, and regen (hp_dot_heal) — all are buff stat_types, none expressible inline.",
+        "Duration semantics + lifecycle — duration_type (combat_end battle-banner, permanent, quest_end) plus lifecycle flags: remove_if_not_active (strip the buff any turn its rule goes false — pairs with a conditional rule), consume_on_rule_active, clear_buffs_on_rule_active, is_clear_debuff_valid (set false so an enemy can't cleanse your self-buff), force_positive."
+      ],
+      "examples": []
+    },
+    {
+      "id": "targeting",
+      "title": "Targeting — who receives the buff",
+      "summary": "The effect's .target picks the recipient; the buff's rule (if any) then evaluates against that actor.",
+      "points": [
+        ".target \"performer\" → self-buff (an hpbelow rule tests the caster's HP).",
+        ".target \"target\" → debuff on the enemy (a target_is_burning rule tests the enemy).",
+        ".target \"performer_group\" → the whole party (party-wide banner).",
+        "So a \"gains +crit while below half HP\" self-buff = a performer-targeted effect applying a buff whose rule_type is hpbelow, rule_data.float 0.5."
+      ],
+      "examples": []
+    },
+    {
+      "id": "mechanics",
+      "title": "Mechanics (code-backed)",
+      "summary": "How buff_ids parse and apply at the code level, plus the free reuse of vanilla buffs.",
+      "points": [
+        ".buff_ids parses up to 8 space/quote-delimited tokens, each hashed → pushed into the effect's buff-id vector (effect+0x68).",
+        "At apply time the effect grants those buffs to its .target; each buff then lives on its own rule + duration, independent of the skill that delivered it.",
+        "Exclusivity (validator): exactly one of buff_ids / combat_stat_buff(+mutators) / buff_type / riposte per effect.",
+        "Reuse vanilla buffs for free: naming a base-game buff id in .buff_ids (e.g. a shared resist buff or a TRINKET_* buff) inherits its exact behavior + tooltip with no new authoring. The overhaul reuses vanilla effect AND buff ids this way."
+      ],
+      "examples": []
+    },
+    {
+      "id": "worked-examples-crusader",
+      "title": "Worked examples (shipped, in-game-verified Crusader)",
+      "summary": "Three concrete Crusader patterns showing why the bridge is required: a battle-long resistance, a heal-over-time regen, and a conditional crit buff.",
+      "points": [
+        "Bulwark of Faith rank 3 grants three resistance buffs at duration_type combat_end (battle-long stun/debuff/move resist) — no skill field exists for this; the buff is the only route.",
+        "Second Wind applies buff cru_regen_1 = {stat_type:\"hp_dot_heal\", amount:2, duration_type:\"combat_end\"}; regen is a buff stat_type, not a skill/effect field.",
+        "Conditional-buff pattern \"+15% crit while below half HP\": a performer-targeted effect applying {stat_type:\"combat_stat_add\", stat_sub_type:\"crit_chance\", amount:0.15, rule_type:\"hpbelow\", rule_data:{float:0.5}}; the hpbelow gate is inexpressible on a skill line or inline effect — buff-only."
+      ],
+      "examples": [
+        {
+          "code": "effect: .name \"Cru Bulwark Resist\" .target \"performer\" .buff_ids \"cru_bul_res_stun cru_bul_res_debuff cru_bul_res_move\"",
+          "note": "Bulwark of Faith rank 3 — three resistance buffs a skill physically cannot grant, all duration_type combat_end."
+        },
+        {
+          "code": "… .buff_ids \"cru_regen_1\"\n// cru_regen_1: { stat_type:\"hp_dot_heal\", amount:2, duration_type:\"combat_end\" }",
+          "note": "Second Wind — heal-over-time regen, a buff stat_type not reachable on a skill/effect field."
+        },
+        {
+          "code": "{ stat_type:\"combat_stat_add\", stat_sub_type:\"crit_chance\", amount:0.15,\n  rule_type:\"hpbelow\", rule_data:{ float:0.5 } }",
+          "note": "Conditional +15% crit while below half HP — the hpbelow rule gate is buff-only."
+        }
+      ]
+    },
+    {
+      "id": "when-inline-is-enough",
+      "title": "When inline is enough (don't over-reach for buff_ids)",
+      "summary": "A plain timed combat-stat swing with no condition is cleanest inline, needing no buffs.json entry.",
+      "points": [
+        "A plain timed combat-stat swing with no condition — e.g. \"+8% dodge for this battle\" — is cleanest inline.",
+        "Reach for .buff_ids the moment you need a rule gate, a resistance, or any non-combat-stat stat_type."
+      ],
+      "examples": [
+        {
+          "code": "effect: … .target \"performer\" .duration 1 .buff_duration_type combat_end .combat_stat_buff 1 .defense_rating_add 8%",
+          "note": "\"+8% dodge for this battle\" done inline — no buffs.json entry required."
+        }
+      ]
+    },
+    {
+      "id": "trinket-firing-architecture",
+      "title": "Trinket trigger firing model (§8)",
+      "summary": "A trinket reaches the same effect→buff bridge through a second, richer door: 22 event triggers, each a JSON array of effect names under <trigger>_additional_effects; the engine runs those effects at the named moment.",
+      "points": [
+        "Skills reach the bridge through combat_skill .effect \"X\"; a trinket has 22 event triggers, each a JSON array of effect NAMES under key <trigger>_additional_effects (e.g. \"round_end_additional_effects\": [\"My Regen Pulse\"]).",
+        "At the named moment the engine runs those effects, and from there the effect→buff chain is identical — this is how a trinket does conditional, event-driven effects a static buffs list can't (DoT-on-being-hit, heal-on-kill, self-destroy on death).",
+        "Accessor FUN_140471ee0(trinketEntry, &outVec, triggerIndex, targetHint) returns the entry's effect-id vector for one of the 22 triggers; combat reads stored vectors by index, not the name table 0x142ac9740 (that table is load + tooltip only).",
+        "Generic firing helper FUN_1405fce10(bg, wearer, source, target, triggerIndex, groupFlag) finds the wearer's trinket, pulls the vector, and enqueues each id via FUN_1405fd0f0(bg, source, target, effectId).",
+        "In FUN_1405fd0f0: source → effect-record source, target → effect-record target — the effect's .target \"target\" resolves to whatever actor the firing site passes as target.",
+        "groupFlag 1 = scan the hero party for the wearer, 0 = scan the monster group. Two group lists on the battleground object: bg+0x8 = hero party, bg+0x48d0 = monster group.",
+        "For 7 triggers the firing site injects the target itself (a specific per-member or self actor), so the effect must be authored .target \"target\" — the loader warns otherwise (a warning, not a reject; per-trigger flag byte at entry+0x45). Forced set: kill_all_heroes(9), kill_all_monsters(10), was_killed_all_heroes(11), was_killed_all_monsters(12), was_hit_all_heroes(14), was_hit_all_monsters(15), on_dodge(18).",
+        "For the other 15, the wearer id is passed only as a hint and the effect's authored .target decides (performer self-buff, target the enemy, this_trinket self-modify) — the standard §4 targeting model."
+      ],
+      "examples": [
+        {
+          "code": "\"round_end_additional_effects\": [\"My Regen Pulse\"]",
+          "note": "A trigger key is a JSON array of effect names; the engine runs those effects at round end, then the effect→buff chain proceeds normally."
+        }
+      ]
+    },
+    {
+      "id": "trinket-firing-gotchas",
+      "title": "Trinket trigger gotchas (§8D)",
+      "summary": "Author-facing non-obvious behaviors of the trinket trigger family.",
+      "points": [
+        "\"all_\" = one firing per living member, not a group-object apply. kill_all_heroes loops the hero list and applies your effect to each hero individually as target. To hit the whole party you write ONE effect with .target \"target\"; the engine fans it out.",
+        "was_hit_all_heroes/_monsters (14/15) are wearer-relative, chosen by the victim's side: 14 = all allies of the wearer, 15 = all enemies of the wearer (a monster wearing it flips them).",
+        "By contrast kill_all (9/10) and was_killed_all (11/12) are hard-wired hero (bg+0x8) / monster (bg+0x48d0) with no swap.",
+        "Self-target triggers (6, 8, 17, 21, and 18) pass source=target=the wearer — a performer-targeted effect and a target-targeted effect land on the same actor, but .target \"target\" is the safe choice for the forced set (18).",
+        "These are trinket-ENTRY only. A trinket set bonus has none of this machinery — its only way to fire an effect is the attack_additional_effect_ids carrier-buff escape hatch (on-attack only, rule-gated)."
+      ],
+      "examples": []
+    }
+  ],
+  "triggers": [
+    {
+      "id": "friendly_skill_additional_effects",
+      "name": "Friendly Skill",
+      "event": "Wearer uses a friendly skill (skill+0x90 != 0)",
+      "target_binding": "Author-chosen (hint: wearer)",
+      "notes": "Evidence 14047d880:55. Free-target trigger — authored .target decides.",
+      "conf": "high"
+    },
+    {
+      "id": "attack_skill_additional_effects",
+      "name": "Attack Skill",
+      "event": "Wearer uses an attack skill (skill+0x90 == 0)",
+      "target_binding": "Author-chosen",
+      "notes": "Evidence 14047d880:55. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "melee_attack_skill_additional_effects",
+      "name": "Melee Attack Skill",
+      "event": "Attack skill categorized \"melee\"",
+      "target_binding": "Author-chosen",
+      "notes": "Evidence 14047d880:68. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "ranged_attack_skill_additional_effects",
+      "name": "Ranged Attack Skill",
+      "event": "Attack skill categorized \"ranged\"",
+      "target_binding": "Author-chosen",
+      "notes": "Evidence 14047d880:86. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "attack_crit_additional_effects",
+      "name": "Attack Crit",
+      "event": "Wearer's attack crits",
+      "target_binding": "Author-chosen",
+      "notes": "Evidence 14047d880:103. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "riposte_skill_additional_effects",
+      "name": "Riposte Skill",
+      "event": "Wearer uses a riposte skill",
+      "target_binding": "Author-chosen",
+      "notes": "Evidence 14047d880:122. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "riposte_kill_additional_effects",
+      "name": "Riposte Kill",
+      "event": "Wearer's riposte scores a kill",
+      "target_binding": "Self (source=target=performer)",
+      "notes": "Evidence 1406052b0:124. Self-target trigger (source=target=wearer).",
+      "conf": "high"
+    },
+    {
+      "id": "riposte_crit_additional_effects",
+      "name": "Riposte Crit",
+      "event": "Wearer's riposte crits",
+      "target_binding": "Author-chosen",
+      "notes": "Evidence 14047d880:135. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "kill_performer_additional_effects",
+      "name": "Kill Performer",
+      "event": "Wearer lands a killing blow",
+      "target_binding": "Self (the killer)",
+      "notes": "Evidence 1406052b0:103. Self-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "kill_all_heroes_additional_effects",
+      "name": "Kill All Heroes",
+      "event": "Wearer kills → once per living hero",
+      "target_binding": "Each hero (bg+0x8), injected",
+      "notes": "Evidence 1406052b0:105. Forced-target set: must author .target \"target\". Hard-wired hero list (bg+0x8), no side swap. Fans out one firing per living hero.",
+      "conf": "high"
+    },
+    {
+      "id": "kill_all_monsters_additional_effects",
+      "name": "Kill All Monsters",
+      "event": "Wearer kills → once per living monster",
+      "target_binding": "Each monster (bg+0x48d0), injected",
+      "notes": "Evidence 1406052b0:114. Forced-target set: must author .target \"target\". Hard-wired monster list (bg+0x48d0), no side swap. Per-member firing.",
+      "conf": "high"
+    },
+    {
+      "id": "was_killed_all_heroes_additional_effects",
+      "name": "Was Killed — All Heroes",
+      "event": "Wearer is killed → per living hero",
+      "target_binding": "Each hero, injected",
+      "notes": "Evidence 1406056a0:214. Forced-target set: must author .target \"target\". Hard-wired hero list, no side swap.",
+      "conf": "high"
+    },
+    {
+      "id": "was_killed_all_monsters_additional_effects",
+      "name": "Was Killed — All Monsters",
+      "event": "Wearer is killed → per living monster",
+      "target_binding": "Each monster, injected",
+      "notes": "Evidence 1406056a0:226. Forced-target set: must author .target \"target\". Hard-wired monster list, no side swap.",
+      "conf": "high"
+    },
+    {
+      "id": "was_hit_additional_effects",
+      "name": "Was Hit",
+      "event": "Wearer is hit (hit path, not dodge)",
+      "target_binding": "Attacker-context",
+      "notes": "Evidence 1405ad470:245. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "was_hit_all_heroes_additional_effects",
+      "name": "Was Hit — All Heroes",
+      "event": "Wearer is hit → per member of wearer's ally group",
+      "target_binding": "Each ally, injected",
+      "notes": "Evidence 1405ad470:259. Forced-target set: must author .target \"target\". Wearer-relative = all allies of the wearer (flips if a monster wears it).",
+      "conf": "high"
+    },
+    {
+      "id": "was_hit_all_monsters_additional_effects",
+      "name": "Was Hit — All Monsters",
+      "event": "Wearer is hit → per member of the enemy group",
+      "target_binding": "Each enemy, injected",
+      "notes": "Evidence 1405ad470:274. Forced-target set: must author .target \"target\". Wearer-relative = all enemies of the wearer (flips if a monster wears it).",
+      "conf": "high"
+    },
+    {
+      "id": "battle_finished_successfully_additional_effects",
+      "name": "Battle Finished Successfully",
+      "event": "Combat won",
+      "target_binding": "Wearer/party context",
+      "notes": "Evidence 1405bfd50:72. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "turn_end_additional_effects",
+      "name": "Turn End",
+      "event": "Wearer's turn ends (bs_after_turn)",
+      "target_binding": "Self",
+      "notes": "Evidence 140756ec0:2894. Self-target trigger (source=target=wearer).",
+      "conf": "high"
+    },
+    {
+      "id": "on_dodge_additional_effects",
+      "name": "On Dodge",
+      "event": "Wearer dodges an attack (Battle::ApplyMiss)",
+      "target_binding": "Self (attacker passed alongside), injected",
+      "notes": "Evidence 1405ade50:74,115. Forced-target set: must author .target \"target\". Self-target but in the forced set, so .target \"target\" is the safe choice.",
+      "conf": "high"
+    },
+    {
+      "id": "on_quest_complete_additional_effects",
+      "name": "On Quest Complete",
+      "event": "Quest completes (out of combat; counted by quest_uses)",
+      "target_binding": "Party context",
+      "notes": "Evidence 1405c67c0:63. Free-target trigger.",
+      "conf": "high"
+    },
+    {
+      "id": "was_killed_additional_effects",
+      "name": "Was Killed",
+      "event": "Wearer is killed (self; also drives 11/12)",
+      "target_binding": "The killed hero",
+      "notes": "Evidence 1406056a0:176. Free-target trigger; also drives was_killed_all_heroes/_monsters.",
+      "conf": "high"
+    },
+    {
+      "id": "round_end_additional_effects",
+      "name": "Round End",
+      "event": "End of combat round",
+      "target_binding": "Self, fires for every wearer on both sides",
+      "notes": "Evidence 1405a48e0:78,110. Self-target trigger (source=target=wearer).",
+      "conf": "high"
+    }
+  ]
+}
