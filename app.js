@@ -13,11 +13,13 @@
 (function () {
   "use strict";
 
-  const DATA = window.DDC_DATA || { surfaces: {}, bridge: { sections: [], triggers: [] }, meta: {} };
+  const DATA = window.DDC_DATA || { carriers: { items: [] }, surfaces: {}, bridge: { sections: [], triggers: [] }, meta: {} };
   const UI_KEY = "ddc.ui";
 
-  // The top-level views. Catalog views read DATA.surfaces[key]; bridge is bespoke; soon = P1 stub.
+  // The top-level views. `carriers` = the author-first front door; catalog views read
+  // DATA.surfaces[key] (the palette they link into); bridge is bespoke; soon = P1 stub.
   const VIEWS = [
+    { key: "designElements", label: "Design Elements", kind: "carriers" },
     { key: "effects",   label: "Effects",       kind: "catalog" },
     { key: "buffStats", label: "Buff Stats",    kind: "catalog" },
     { key: "buffRules", label: "Rule Gates",    kind: "catalog" },
@@ -25,8 +27,10 @@
     { key: "heroes",    label: "Hero Designs",  kind: "soon"    },
     { key: "balance",   label: "Balance Scales",kind: "soon"    },
   ];
+  const carriers = () => (DATA.carriers && DATA.carriers.items) || [];
 
   const INTRO = {
+    designElements: "The things you <b>author</b>, and how each one reaches the palette. A <b>buff</b> is the leaf (a stat modifier, gatable by any rule); an <b>effect</b> is the only bridge to it for carriers that can't hold a buff. Pick what you're building to see its wiring — <b>B</b> holds buffs directly · <b>E</b> carries effects · <b>T</b> fires on a trigger · <b>S</b> sets base stats.",
     effects:   "Skill <b>effects</b> — every payload a combat skill can carry (damage, control, movement, buffs, stress, stealth…). Filter by intent, search by plain-language keyword, open one for its authoring syntax and examples.",
     buffStats: "Buff <b>stat_types</b> — the 93 stat modifiers a buff can apply. These are what a skill reaches through the bridge. Watch the <b>unit</b> convention (fractional vs raw vs flag) — it's the #1 authoring trap.",
     buffRules: "<b>rule_type</b> gates — the 55 “only-while-X” conditionals that make a buff situational (low HP, front rank, vs a monster type, at Death's Door…). This is the creative layer: the same stat gains character from its gate.",
@@ -39,7 +43,7 @@
     let s = {};
     try { s = JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch { s = {}; }
     return {
-      view: VIEWS.some(v => v.key === s.view && v.kind !== "soon") ? s.view : "effects",
+      view: VIEWS.some(v => v.key === s.view && v.kind !== "soon") ? s.view : "designElements",
       cat: s.cat || {},        // { viewKey: activeCategoryId | "all" }
       search: s.search || {},  // { viewKey: query }
     };
@@ -96,7 +100,8 @@
 
     const view = VIEWS.find(v => v.key === state.view);
     let body = "";
-    if (view.kind === "catalog") body = catalogHTML(view.key);
+    if (view.kind === "carriers") body = carriersHTML();
+    else if (view.kind === "catalog") body = catalogHTML(view.key);
     else if (view.kind === "bridge") body = bridgeHTML();
 
     app.innerHTML = `
@@ -109,6 +114,74 @@
 
     const newMain = app.querySelector(".surface-main");
     if (newMain) newMain.scrollTop = prevScroll;
+  }
+
+  // ═══ DESIGN ELEMENTS (carriers) — the author-first front door ═══
+  function wiringBadges(c) {
+    const b = [];
+    if (c.buff_direct && c.buff_direct.can) b.push(`<span class="wb wb-b" title="Holds buffs directly (no effect needed)">B · direct buff</span>`);
+    if (c.effect_direct && c.effect_direct.can) b.push(`<span class="wb wb-e" title="Carries effect payloads (which bridge to buffs)">E · effects</span>`);
+    const tn = (c.triggers || []).length;
+    if (tn) b.push(`<span class="wb wb-t" title="Fires effects on ${tn} event trigger${tn > 1 ? "s" : ""}">T · ${tn} trigger${tn > 1 ? "s" : ""}</span>`);
+    if (c.stat_carrier) b.push(`<span class="wb wb-s" title="Also defines raw base stats">S · base stats</span>`);
+    if (c.rule_gating && c.rule_gating.can) b.push(`<span class="wb wb-g" title="Its buffs can carry rule_type conditional gates">gatable</span>`);
+    return `<div class="carrier-badges">${b.join("")}</div>`;
+  }
+
+  function carriersHTML() {
+    const items = carriers();
+    if (!items.length) return `<p class="empty-state">No carriers. Run <code>node build-data.mjs</code>.</p>`;
+    const cards = items.map(c => {
+      const icon = c.icon ? `<img class="carrier-icon" src="${esc(c.icon)}" alt="" onerror="this.style.visibility='hidden'">` : "";
+      return `<div class="carrier-card" data-action="carrier" data-id="${esc(c.id)}">
+        <div class="carrier-head">${icon}<span class="carrier-name">${esc(c.name)}</span>${c.conf ? `<span class="pill conf-${esc(c.conf)}">${esc(c.conf)}</span>` : ""}</div>
+        ${wiringBadges(c)}
+        <div class="carrier-summary">${esc(c.summary || "")}</div>
+        ${c.file ? `<div class="carrier-file">${esc(c.file)}</div>` : ""}
+      </div>`;
+    }).join("");
+    return `<p class="surface-intro">${INTRO.designElements}</p><div class="carrier-grid">${cards}</div>`;
+  }
+
+  // palette jump-links shown in a carrier's detail
+  function paletteLinks() {
+    const L = [["effects", "Effects"], ["buffStats", "Buff Stats"], ["buffRules", "Rule Gates"], ["bridge", "Bridge"]];
+    return `<div class="palette-links">${L.map(([v, n]) =>
+      `<button class="ghost" data-action="goto-view" data-view="${v}">${esc(n)} →</button>`).join("")}</div>`;
+  }
+
+  function openCarrierDetail(id) {
+    const c = carriers().find(x => x.id === id);
+    if (!c) return;
+    let html = `<div class="detail-tags">${wiringBadges(c)}</div>`;
+    html += `<p class="lead">${esc(c.summary || "")}</p>`;
+
+    const rows = [];
+    if (c.bridge_to_buff) rows.push(kv("Reaches a buff via", esc(c.bridge_to_buff)));
+    if (c.buff_direct) rows.push(kv("Direct buff?", c.buff_direct.can ? esc(c.buff_direct.how || "yes") : `<span class="muted">no — ${esc(c.buff_direct.how || "must route through an effect")}</span>`));
+    if (c.effect_direct) rows.push(kv("Carries effects?", c.effect_direct.can ? esc(c.effect_direct.how || "yes") : `<span class="muted">no</span>`));
+    if (c.rule_gating) rows.push(kv("Rule-gatable?", (c.rule_gating.can ? "yes" : "no") + (c.rule_gating.note ? ` — ${esc(c.rule_gating.note)}` : "")));
+    if (c.stat_carrier != null) rows.push(kv("Sets base stats?", c.stat_carrier ? "yes" : "no"));
+    if (c.file) rows.push(kv("Authored in", `<code>${esc(c.file)}</code>`));
+    html += `<h3>Wiring</h3><dl class="kv">${rows.join("")}</dl>`;
+
+    if (Array.isArray(c.triggers) && c.triggers.length) {
+      html += `<h3>Triggers — ${c.triggers.length}</h3>
+        <div class="trig-table-wrap"><table class="trig-table">
+          <thead><tr><th class="mono">hook</th><th>when</th><th>target</th></tr></thead>
+          <tbody>${c.triggers.map(t => `<tr><td class="mono">${esc(t.hook || "")}</td><td>${esc(t.when || "")}</td><td>${esc(t.target || "")}</td></tr>`).join("")}</tbody>
+        </table></div>`;
+    }
+    if (c.notes) html += `<h3>Notes</h3><p>${esc(c.notes)}</p>`;
+    if (Array.isArray(c.examples) && c.examples.length) {
+      html += `<h3>Examples</h3>` + c.examples.map(ex =>
+        `<div class="code-block">${esc(ex.code)}</div>${ex.note ? `<p class="code-note">${esc(ex.note)}</p>` : ""}`).join("");
+    }
+    html += `<h3>Jump to the palette</h3>${paletteLinks()}`;
+    if (c.ref) html += `<p class="ref-cite">Grounded in <code>${esc(c.ref)}</code></p>`;
+
+    const titleIcon = c.icon ? `<img class="head-icon" src="${esc(c.icon)}" alt="" onerror="this.style.display='none'">` : "";
+    renderDetail(`${titleIcon}${esc(c.name)} <span class="head-id">${esc(c.id)}</span>`, html);
   }
 
   // ═══ CATALOG VIEW (effects / buffStats / buffRules) ═══
@@ -288,6 +361,8 @@
         state.cat[el.dataset.view] = el.dataset.cat; persist(); renderApp(); break;
       case "detail":
         openDetail(el.dataset.view, el.dataset.id); break;
+      case "carrier":
+        openCarrierDetail(el.dataset.id); break;
     }
   }
   function onAppInput(e) {
@@ -313,6 +388,9 @@
     const el = e.target.closest("[data-action]");
     if (!el) { if (e.target.id === "detail-overlay-root") closeDetail(); return; }
     if (el.dataset.action === "close-detail") closeDetail();
+    else if (el.dataset.action === "goto-view") {   // carrier detail → jump into a palette surface
+      state.view = el.dataset.view; persist(); closeDetail(); renderApp();
+    }
   }
   function onKeydown(e) {
     if (e.key !== "Escape") return;

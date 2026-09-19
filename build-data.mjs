@@ -86,6 +86,17 @@ const ITEM_ICON_RULES = [
   [/\btag\b/i, "tray_tag"],
 ];
 
+// Carrier (design-element) icons — one representative game icon per carrier.
+const CARRIER_ICONS = {
+  "hero-combat-skill": "carrier_skill", "hero-camping-skill": "carrier_camp",
+  "trinket": "carrier_trinket", "trinket-set-bonus": "carrier_trinket",
+  "quirk": "carrier_quirk", "disease": "carrier_disease",
+  "deaths-door": "tray_deathsdoor", "afflictions-virtues": "tray_afflicted",
+  "monster": "carrier_monster", "curio": "carrier_curio",
+  "town-district-building": "carrier_town", "actor-dot": "tray_dot_burn",
+  "mode-stance": "tray_berserk", "companion-summon": "icon_summon",
+};
+
 const iconExists = new Map();
 function haveIcon(name) {
   if (!name) return false;
@@ -201,9 +212,29 @@ function compileBridge() {
   return { sections, triggers };
 }
 
+// ── compile carriers (design elements — the author-first front door) ──
+function compileCarriers() {
+  const raw = readJSON("carriers.json");
+  if (!raw) return { items: [] };
+  if (!Array.isArray(raw.carriers)) { errors.push(`carriers.json: expected an array at "carriers"`); return { items: [] }; }
+  const seen = new Set();
+  for (const c of raw.carriers) {
+    if (!c.id) { errors.push(`carriers.json: a carrier has no id (name="${c.name || "?"}")`); continue; }
+    if (seen.has(c.id)) errors.push(`carriers.json: duplicate carrier id "${c.id}"`);
+    seen.add(c.id);
+    const iconName = CARRIER_ICONS[c.id];
+    if (iconName && !haveIcon(iconName)) errors.push(`carriers.json: carrier "${c.id}" -> icon ${iconName}.png (missing)`);
+    else if (!iconName) warnings.push(`carriers.json: carrier "${c.id}" has no icon mapping`);
+    c.icon = haveIcon(iconName) ? iconPath(iconName) : null;
+    if (!c.name) warnings.push(`carriers.json: carrier "${c.id}" has no name`);
+  }
+  return { items: raw.carriers, _count: seen.size };
+}
+
 // ── run ──
 const surfaces = {};
 CATALOGS.forEach((cfg, i) => { const c = compileCatalog(cfg, i); if (c) surfaces[cfg.key] = c; });
+const carriers = compileCarriers();
 const bridge = compileBridge();
 
 // ── hygiene report ──
@@ -212,6 +243,7 @@ for (const key of Object.keys(surfaces)) {
   const s = surfaces[key];
   console.log(`✓ ${s.label.padEnd(11)} ${String(s._counts.items).padStart(3)} items · ${s._counts.groups} groups · ${s._counts.enriched} enriched`);
 }
+console.log(`✓ Carriers    ${String(carriers._count || 0).padStart(3)} design elements`);
 console.log(`✓ Bridge      ${String(bridge.sections.length).padStart(3)} sections · ${bridge.triggers.length} triggers`);
 if (errors.length) { console.log(`✗ ${errors.length} error(s):`); errors.forEach(e => console.log(`    ${e}`)); }
 if (warnings.length) { console.log(`⚠ ${warnings.length} warning(s):`); warnings.slice(0, 40).forEach(w => console.log(`    ${w}`)); if (warnings.length > 40) console.log(`    …and ${warnings.length - 40} more`); }
@@ -224,9 +256,10 @@ if (hardErrors) {
 }
 
 for (const s of Object.values(surfaces)) delete s._counts;
+delete carriers._count;
 const data = {
   meta: { generated: new Date().toISOString().slice(0, 10), surfaces: Object.fromEntries(Object.values(surfaces).map(s => [s.key, s.items.length])) },
-  surfaces, bridge,
+  carriers, surfaces, bridge,
 };
 fs.writeFileSync(OUT, `window.${ACRONYM}_DATA = ${JSON.stringify(data)};\n`);
 console.log(`Wrote ${OUT} (window.${ACRONYM}_DATA) — ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB.`);

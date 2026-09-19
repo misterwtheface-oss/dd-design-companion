@@ -35,6 +35,24 @@ Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`
 - [ ] Live "do my design's references resolve?" checker.
 
 ## Log
+### 2026-09-19 — session 1c (reorg: Design Elements front door)
+- **New organizing principle — carriers over primitives.** Added a **Design Elements** surface as
+  the author-first front door: the 14 content types you actually author, each shown with its
+  **wiring** to the palette. The unifying model = 4 modes: **B** holds buffs directly · **E** carries
+  effects (the only bridge to a buff for non-B carriers) · **T** fires effects on a trigger · **S**
+  sets base stats. Possibility Space stays as the palette these link into.
+- **`data/carriers.json`** (14, grounded across MONSTERS/QUIRKS/DEATHS_DOOR/CURIOS/MODDING_COOKBOOK/
+  EFFECT_BUFF_BRIDGE): hero-combat-skill, hero-camping-skill, trinket, trinket-set-bonus, quirk,
+  disease, deaths-door, afflictions-virtues, monster, curio, town-district-building, actor-dot,
+  mode-stance, companion-summon. Each carries buff_direct/effect_direct/bridge_to_buff/triggers/
+  rule_gating/stat_carrier/notes/examples/ref. Carrier cards → detail overlay (wiring table + trigger
+  table + examples + **jump-links into the palette**).
+- **User-model corrections (grounded):** hero skill = E-only (can't hold a buff, confirmed); trinket
+  = B + **22** triggers (not just on-attack); quirk = B-only but **rule-gatable** (not "simple");
+  monster = the most multi-modal (B+E+T×12+S). Saved to memory.
+- Carrier icons pulled from the install (carrier_skill/quirk/trinket/monster/curio/town/camp/disease).
+  Build clean, 326 KB. [[dd-design-companion-site]].
+
 ### 2026-09-19 — session 1b (Possibility Space polish)
 - **Chips → dropdown:** the category chip strip filled the phone screen; replaced with a compact
   `<select>` (with the active category's game icon) + search on one toolbar row.
