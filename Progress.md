@@ -3,6 +3,9 @@
 Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`.
 
 ## Current state (2026-09-19 — scaffolding session)
+- **LIVE:** https://misterwtheface-oss.github.io/dd-design-companion/ (repo
+  `misterwtheface-oss/dd-design-companion`, Pages main/root, analytics active). P0 shipped.
+
 - **Purpose:** design-companion + wiki for the DD1 overhaul mod (`../dd-mods`). Three surfaces:
   Possibility Space (P0), Hero Designs (P1), Balance Scales (P1). See `SPEC_PLAN.md`.
 - **Decisions locked this session:** deploy target = **live public GitHub Pages**; P0 priority =
@@ -12,12 +15,12 @@ Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`
 
 ## Backlog
 ### P0 (this session)
-- [ ] App shell + top nav + DD-gothic palette (mobile-first).
-- [ ] Possibility Space surface: Effects / Buff Stats / Rule Gates / Bridge — category-tabbed,
+- [x] App shell + top nav + DD-gothic palette (mobile-first).
+- [x] Possibility Space surface: Effects / Buff Stats / Rule Gates / Bridge — category-tabbed,
       coloured, searchable tile grids → detail overlay.
-- [ ] `build-data.mjs` + hygiene guardrails + hygiene report.
-- [ ] `data/*.json`: effects, buff_stats, buff_rules, bridge (extracted from `_dd_extract`).
-- [ ] Deploy live to GitHub Pages; confirm URL responds.
+- [x] `build-data.mjs` + hygiene guardrails + hygiene report.
+- [x] `data/*.json`: effects (176), buff_stats (93), buff_rules (55), bridge (9 sec/22 trig).
+- [x] Deploy live to GitHub Pages; confirmed URL responds (200).
 
 ### P1
 - [ ] Hero Designs viewer (Crusader / Highwayman / Vestal) with effect/buff links into the catalog.
