@@ -9,10 +9,17 @@ a reference & visualization tool for *building the mod*. See `SPEC_PLAN.md` for 
 the UI has since been reframed — this doc is the current truth).
 
 **Current architecture (as shipped):**
-- **Wizard** = the front door. A 4-question guided flow over the 14 **carriers** (the content types you
-  author): (1) What are you building? → pick a carrier · (2) What's forced by that start? · (3) What
-  choices does it give? · (4) What's the hard limit? Q1 is a carrier picker; Q2–Q4 are a stepped
-  accordion (Forced / Choices / Limits), whose items jump-link into the Appendix.
+- **Design Studio** = the front door (`designer.js`, `window.DDCDesigner`). A **"design as you go"**
+  wizard: pick an element and walk **each concrete design choice** with the mod's balance scales
+  **enforced live** (warn-but-allow), ending in an authorable `.darkest`/`.json` snippet + a
+  Definition-of-Done checklist. Four elements have deep, number-enforced flows — **Combat Skill**
+  (targeting, damage vs the WeaponDmg tier, effects/buffs+gates, rank-3/5 escalation), **Stat Block**
+  (6-tier + 8-resist point-buy to 30, live realized stats, exact `.info` block), **Trinket** (value =
+  ladder × gate + malus, point-buy vs rarity), **Quirk** (rule-gated components, +2/0 point target,
+  permanence). The other 11 carriers open a **guided reference** (the old forced/choices/limits walk).
+  Balance from `DDC_DATA.balance`; palettes are the same `DDC_DATA.surfaces` the Appendix uses;
+  add-pickers live on `#picker-root`; state persists per-flow to `ddc.design`.
+  *(Superseded: the old 4-question "wizard" reader — that code is removed.)*
 - **Appendix** = one overlay (opened from a single nav button) hosting the whole reference layer as an
   internal tab strip: **Design Elements** (the 14 carriers + their wiring) · **Effects** (176) · **Buff
   Stats** (93) · **Rule Gates** (55) · **Bridge** (effect→buff chain + 22 trinket triggers). Searchable,
@@ -37,14 +44,18 @@ These two are the input. **Never copy the datamine or the mod's raw notes into t
 Pages). Only our authored/compiled design surface is tracked ([[feedback_extract_not_in_app_repo]]).
 
 ## Build & sync
-Both are vanilla Node, **zero npm dependencies**.
+All vanilla Node, **zero npm dependencies**.
 ```
-node build-data.mjs            # compile data/*.json -> data.js (window.DDC_DATA), with hygiene guardrails
+node tools/gen-balance.mjs     # compile the balance scales from ../dd-mods/notes/*.csv -> data/balance/*.json
+node build-data.mjs            # compile data/*.json (+ balance) -> data.js (window.DDC_DATA), with hygiene guardrails
 node build-data.mjs --strict   # warnings promoted to errors (pre-release pass)
 node tools/sync-icons.mjs      # (re)build assets/icons/ from ../_dd_extract/assets via data/icon-sources.json
 node tools/sync-icons.mjs --prune   # also delete on-disk icons not in the map
 node tools/serve.mjs           # preview at http://localhost:8080 (+ LAN); stop when done
 ```
+`gen-balance.mjs` reads the sibling **`../dd-mods`** workspace at dev time (same pattern as
+`sync-icons.mjs` reading `../_dd_extract`); the **raw CSVs stay OUT of this public repo**, only the
+compiled `data/balance/*.json` is tracked. Load order: `data.js` → `designer.js` → `app.js`.
 `build-data.mjs` guardrails: every catalog item's group resolves, every referenced **icon exists on
 disk**, every wizard jump-link resolves to a real view — else it fails and leaves the last good
 `data.js` intact. `sync-icons.mjs` cross-checks: any icon `build-data.mjs` references must be mapped in
@@ -58,8 +69,11 @@ visualizer — kept on purpose).
 | `buff_stats.json` (+`.enrich.json`) | 93 stat_types / 14 domains | `BUFF_COMPONENTS` + `BUFFS_REFERENCE` | Appendix → Buff Stats |
 | `buff_rules.json` (+`.enrich.json`) | 55 rule gates / 12 groups | `BUFF_COMPONENTS §3` + `trinket-rule-modifiers.csv` | Appendix → Rule Gates |
 | `bridge.json` | 9 sections + 22 triggers | `EFFECT_BUFF_BRIDGE` | Appendix → Bridge |
-| `carriers.json` | 14 carriers + wiring | MONSTERS/QUIRKS/DEATHS_DOOR/CURIOS/BRIDGE + HERO_COOKBOOK | Appendix → Design Elements **and** the Wizard entry points |
-| `wizard.enrich.json` | forced/choices/limits per carrier | HERO_COOKBOOK + carriers + refs | merged onto carriers → the Wizard steps |
+| `carriers.json` | 14 carriers + wiring | MONSTERS/QUIRKS/DEATHS_DOOR/CURIOS/BRIDGE + HERO_COOKBOOK | Appendix → Design Elements **and** Studio guided-reference fallback |
+| `wizard.enrich.json` | forced/choices/limits per carrier | HERO_COOKBOOK + carriers + refs | merged onto carriers → the guided-reference walk |
+| `balance/stat-scale.json` | 10 tiers × 5 ranks curves + point-buy + roles | `dd-mods/stat_scale.csv` + `STAT_SCALING.md` | Studio: Stat Block + Combat Skill norms |
+| `balance/trinket-ladder.json` | 32 weighted effects (+64 placeholders) + malus | `dd-mods/trinket-buff-weights.csv` | Studio: Trinket + Quirk value model |
+| `balance/trinket-rules.json` | 58 rule modifiers | `dd-mods/trinket-rule-modifiers.csv` | Studio: gate multipliers |
 | `icon-sources.json` | 49 icon → extract path | provenance recovered by content-hash off `_dd_extract/assets` | `sync-icons.mjs` |
 
 **Enrichment pattern:** the `*.enrich.json` files are compact `{ id: {doc, ref} }` (or wizard

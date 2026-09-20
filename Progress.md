@@ -2,6 +2,69 @@
 
 Cross-session status log. Newest on top. Read this first, then `WIKI_CONTEXT.md`.
 
+### 2026-09-20 — Combat-skill flow: real damage-budget enforcement + free r3/r5 rule
+Wired the empirical skill-balance framework (`../dd-mods/notes/skill-balance-framework.md`, large-n) into
+the Combat Skill flow, replacing the hand-picked ±10%/+50% bands with a **constraint-aware damage budget**:
+- **Numbers step** now has **rider toggles** (stun −60 / debuff −85 / bleed −20 / blight −75 / push-pull −50)
+  + a live **budget panel**: `expected .dmg = rank-lock premium − AoE penalty − any-rank reach creep −
+  Σ rider taxes`, window ±15. Verdict flags over/under (over = "free damage the contract doesn't pay for —
+  move it to a conditional premium, not the base"). Added a **ST · rank 1 only** shape so Point-Blank-style
+  locks (+50) are authorable; `damageBudget()`/`budgetPanel()` + `RIDERS`/`SHAPES` tc/aoe metadata in
+  `designer.js`.
+- **Rank-3/5 = free spikes (user rule):** the overhaul makes the game much harder as it progresses, and
+  *that rising difficulty is what pays for the r3/r5 extras* — so they are NOT charged to the base budget.
+  Escalation step reframed accordingly ("don't discount base .dmg to afford them"); snippet + DoD updated
+  (base-on-budget checkbox; r3/r5 flagged free/difficulty-financed).
+- Verified: jsdom 12/12 (default +10, stun→−50, Point-Blank→+50, AoE→−80, reframed escalation, snippet/DoD).
+  Self/ally skills correctly show "no damage budget". No data.js rebuild needed (designer.js is static).
+
+### 2026-09-19 — Design Studio: the "design as you go" wizard (major reframe)
+The old wizard was a 4-question **reader** (pick a carrier → read its forced/choices/limits). It is
+replaced by a **Design Studio**: pick an element and walk **each concrete design choice** with the
+mod's real balance scales **enforced live** (warn-but-allow), ending in an authorable snippet + a
+Definition-of-Done. Front-door nav is now **Design Studio · 📖 Appendix** (the Appendix reference
+layer is unchanged).
+- **Four deep, number-enforced flows** (`designer.js`, `window.DDCDesigner`):
+  - **Combat Skill** (9 steps): identity → type → targeting → numbers (dmg%/crit vs the WeaponDmg
+    tier, live realized min–max) → move & flags → effects (palette picker) → buffs & rule gates →
+    rank-3/5 escalation (**"no dead skill levels"** warn) → review. Enforces the static-across-levels
+    rule, damage bands, one-payload-per-effect.
+  - **Stat Block** (4): combat 6-tier + resist 8-tier **point-buy to 30** with a live budget bar,
+    role presets, realized rank-4 stats, and an **exact** `resistances:`/`weapon:`×5/`armour:`×5 block.
+  - **Trinket** (3): live **value = ladder × gate** + malus drawbacks; **point-buy vs rarity budget**
+    (uncommon 2 … comet 6); gates trade uptime for magnitude, drawbacks buy headroom.
+  - **Quirk** (4): signature +/- components (same ladder), rule gates (virtued/afflicted/DD),
+    point target (+2 positive / 0 neutral negative), permanence flags, roster-seed snippet (P10b).
+  - The other 11 carriers get a **guided reference** fallback (the old forced/choices/limits walk).
+- **Balance data pipeline:** `tools/gen-balance.mjs` compiles the user-authored scales from
+  `../dd-mods/notes/*.csv` (stat_scale, trinket-buff-weights, trinket-rule-modifiers) → tracked
+  `data/balance/*.json` (same dev-time-reads-sibling-workspace pattern as `sync-icons.mjs`; raw CSVs
+  stay out of the repo). `build-data.mjs` compiles them into `DDC_DATA.balance` with guardrails
+  (10 tiers present, role vectors sum to the budget, ladder rows have a stat_type, rules have a
+  modifier). `--strict` clean.
+- **UI:** each flow = a horizontal stepper rail + a panel (prompt · controls · **live verdict list**
+  · Appendix jump-links). Add-pickers (effects / buff stats / value ladder / rule gates) are a
+  searchable overlay on a dedicated `#picker-root` (own listeners; own Escape). Review step renders
+  a copy-able snippet + a DoD checklist that auto-checks from the build state. Mobile-first;
+  side-by-side review ≥720px. State persists per-flow to `ddc.design`.
+- **Verified:** jsdom click-through of all 4 flows (28/28 — home grid, step nav, pickers, live
+  verdicts, point-buys, snippets), `node build-data.mjs --strict` clean. Old dead wizard code removed
+  from `app.js`; `.wiz-*`/`.carrier-*` CSS retained (carriers still power the Appendix).
+- **Next:** deepen the guided carriers into real flows (monster/curio/camping first); optional
+  side-rail persistent spec preview; export multiple designs to a saved list.
+
+**Follow-up (same day) — closed the 7 undefined rule multipliers.** The trinket value model had 7
+`rule_type`s with no multiplier (target_in_rank, has_buff, negative_quirk_above,
+quest_uses_remaining_above, target_is_burning, any_is_burning, is_target_corpse). Assigned all of them
+via an explicit **uptime model** — `multiplier ≈ 1 / expected-uptime`, snapped to quarters against the
+existing anchors (always=1 · ~½=2 · ~⅓=3 · rare=5), parameterized rules ramping +0.5/step. Written
+**provisional** into `../dd-mods/notes/trinket-rule-modifiers.csv` (source of truth) with the model
+recorded in `trinket-buff-weights.md` open-Q5 (now RESOLVED-provisional). `gen-balance.mjs` carries a
+`provisional` flag; the Studio gate picker now lists all **70** rule modifiers (was 58), sorts locked
+first, tags provisional ones **⚑ · provisional**, and every flow that uses a gate (Combat Skill buffs /
+Trinket / Quirk) raises an **info verdict** noting the multiplier isn't locked yet. jsdom 5/5 on the
+provisional path. Awaiting the user's lock/tune pass (esp. `has_buff` single-default vs per-buff tiers).
+
 ### 2026-09-19 — icon sync pipeline
 - The 49 shipped icons are no longer hand-copied. `data/icon-sources.json` maps each icon name →
   its exact path inside the canonical `../_dd_extract/assets/` (provenance recovered by content-hash;

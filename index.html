@@ -28,9 +28,12 @@
        #detail-overlay-root = detail pages, stacks ABOVE (z 200) -->
   <div id="overlay-root" class="hidden" aria-hidden="true"></div>
   <div id="detail-overlay-root" class="hidden" aria-hidden="true"></div>
+  <!-- #picker-root = the Design Studio's searchable add-pickers (own listeners, z 300) -->
+  <div id="picker-root" class="hidden" aria-hidden="true"></div>
 
-  <!-- data.js must load before app.js: it defines window.DDC_DATA -->
+  <!-- data.js defines window.DDC_DATA; designer.js defines window.DDCDesigner; app.js drives both -->
   <script src="data.js"></script>
+  <script src="designer.js" defer></script>
   <script src="app.js" defer></script>
 
   <!-- Cloudflare Web Analytics — shared misterwtheface-oss.github.io token (public-by-design);

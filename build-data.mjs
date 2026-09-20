@@ -202,6 +202,49 @@ function compileCatalog(cfg, surfaceIndex) {
   };
 }
 
+// ── compile the balance model (data/balance/*.json → DDC_DATA.balance) ──
+// These are compiled from the user-authored balance scales by tools/gen-balance.mjs.
+// They drive the Design Studio's live enforcement (point-buy, tier norms, trinket value).
+function compileBalance() {
+  const rd = (f) => {
+    const p = path.join(DATA_DIR, "balance", f);
+    if (!fs.existsSync(p)) { errors.push(`missing balance file data/balance/${f} — run node tools/gen-balance.mjs`); return null; }
+    try { return JSON.parse(fs.readFileSync(p, "utf8")); }
+    catch (e) { errors.push(`data/balance/${f}: invalid JSON — ${e.message}`); return null; }
+  };
+  const statScale = rd("stat-scale.json");
+  const trinketLadder = rd("trinket-ladder.json");
+  const trinketRules = rd("trinket-rules.json");
+
+  // guardrails — fail loudly if the balance model is malformed (the Studio trusts it)
+  if (statScale) {
+    if (!Array.isArray(statScale.tiers) || statScale.tiers.length !== 10)
+      errors.push(`stat-scale.json: expected 10 tiers`);
+    for (const t of statScale.tiers || []) {
+      if (!statScale.curves.WeaponDamage[t]) errors.push(`stat-scale.json: WeaponDamage missing tier ${t}`);
+      if (!statScale.curves.Resist[t]) errors.push(`stat-scale.json: Resist missing tier ${t}`);
+    }
+    for (const [role, vec] of Object.entries(statScale.roles || {})) {
+      const sum = vec.reduce((a, b) => a + b, 0);
+      if (sum !== statScale.budgets.combatSum) errors.push(`stat-scale.json: role "${role}" sums ${sum} (expected ${statScale.budgets.combatSum})`);
+    }
+  }
+  if (trinketLadder) {
+    const weighted = (trinketLadder.effects || []).filter((e) => !e.placeholder);
+    if (!weighted.length) errors.push(`trinket-ladder.json: no weighted effects`);
+    for (const e of weighted) {
+      if (!e.statType) errors.push(`trinket-ladder.json: effect "${e.name}" has no stat_type`);
+      if (!Array.isArray(e.ladder) || e.ladder.length !== (trinketLadder.steps || []).length)
+        errors.push(`trinket-ladder.json: effect "${e.name}" ladder length mismatch`);
+    }
+  }
+  if (trinketRules) {
+    const usable = (trinketRules.rules || []).filter((r) => r.modifier != null);
+    if (!usable.length) errors.push(`trinket-rules.json: no rules with a modifier`);
+  }
+  return { statScale, trinketLadder, trinketRules };
+}
+
 function compileBridge() {
   const raw = readJSON("bridge.json");
   if (!raw) return { sections: [], triggers: [] };
@@ -253,6 +296,7 @@ const surfaces = {};
 CATALOGS.forEach((cfg, i) => { const c = compileCatalog(cfg, i); if (c) surfaces[cfg.key] = c; });
 const carriers = compileCarriers();
 const bridge = compileBridge();
+const balance = compileBalance();
 
 // ── hygiene report ──
 console.log("── Data hygiene report ──────────────────────────");
@@ -262,6 +306,11 @@ for (const key of Object.keys(surfaces)) {
 }
 console.log(`✓ Carriers    ${String(carriers._count || 0).padStart(3)} design elements · ${carriers._wiz || 0} with wizard content`);
 console.log(`✓ Bridge      ${String(bridge.sections.length).padStart(3)} sections · ${bridge.triggers.length} triggers`);
+if (balance.statScale) {
+  const w = (balance.trinketLadder?.effects || []).filter((e) => !e.placeholder).length;
+  const r = (balance.trinketRules?.rules || []).filter((x) => x.modifier != null).length;
+  console.log(`✓ Balance     10 tiers · ${Object.keys(balance.statScale.roles || {}).length} roles · ${w} weighted trinket effects · ${r} rule modifiers`);
+}
 if (errors.length) { console.log(`✗ ${errors.length} error(s):`); errors.forEach(e => console.log(`    ${e}`)); }
 if (warnings.length) { console.log(`⚠ ${warnings.length} warning(s):`); warnings.slice(0, 40).forEach(w => console.log(`    ${w}`)); if (warnings.length > 40) console.log(`    …and ${warnings.length - 40} more`); }
 console.log("─".repeat(50));
@@ -276,7 +325,7 @@ for (const s of Object.values(surfaces)) delete s._counts;
 delete carriers._count; delete carriers._wiz;
 const data = {
   meta: { generated: new Date().toISOString().slice(0, 10), surfaces: Object.fromEntries(Object.values(surfaces).map(s => [s.key, s.items.length])) },
-  carriers, surfaces, bridge,
+  carriers, surfaces, bridge, balance,
 };
 fs.writeFileSync(OUT, `window.${ACRONYM}_DATA = ${JSON.stringify(data)};\n`);
 console.log(`Wrote ${OUT} (window.${ACRONYM}_DATA) — ${(fs.statSync(OUT).size / 1024).toFixed(0)} KB.`);
